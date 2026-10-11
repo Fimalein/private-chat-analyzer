@@ -5,6 +5,7 @@ import { useChat } from "@/components/ChatProvider";
 import { useLocale } from "@/components/LocaleProvider";
 import {
   nextStructuredPiiReplacement,
+  rawValuesForDetection,
   redactPlaceholder,
   reviewSummary,
   sampleContextsForDetection,
@@ -94,8 +95,8 @@ function PrivacyReviewPanel({ onClose }: { onClose: () => void }) {
           unreviewed: "Unreviewed",
           reviewed: "Reviewed",
           high: "High-risk unresolved",
-          all: "All",
           occurrences: "occurrences",
+          variants: "raw variants",
           samples: "Show samples",
           hideSamples: "Hide samples",
           field: "field",
@@ -106,7 +107,7 @@ function PrivacyReviewPanel({ onClose }: { onClose: () => void }) {
           replacement: "replacement",
           noItems: "No candidates in this view.",
           rawWarning:
-            "The value below is raw local data. It is shown only so you can decide what to do with it.",
+            "The values below are raw local data. They are shown only so you can decide what to do with them.",
           reviewedAs: "Reviewed as",
           statusPseudonymize: "pseudonymized",
           statusRedact: "redacted",
@@ -122,8 +123,8 @@ function PrivacyReviewPanel({ onClose }: { onClose: () => void }) {
           unreviewed: "未確認",
           reviewed: "已確認",
           high: "高風險未確認",
-          all: "全部",
           occurrences: "次出現",
+          variants: "種原始表記",
           samples: "顯示前後文",
           hideSamples: "隱藏前後文",
           field: "欄位",
@@ -149,20 +150,27 @@ function PrivacyReviewPanel({ onClose }: { onClose: () => void }) {
     return text.statusIgnore;
   }
 
+  function removeReviewMappings(detection: StructuredPiiDetection) {
+    const rawValues = rawValuesForDetection(detection, messages);
+    for (const rawValue of rawValues) {
+      removePrivacyMapping(active.id, rawValue);
+    }
+  }
+
   function applyDecision(
     detection: StructuredPiiDetection,
     action: PrivacyReviewAction,
   ) {
+    const rawValues = rawValuesForDetection(detection, messages);
     const existing = activePrivacyReviewDecisions[detection.id];
-    if (existing?.action !== "ignore") {
-      removePrivacyMapping(active.id, detection.value);
-    }
+    if (existing?.action !== "ignore") removeReviewMappings(detection);
 
     let replacement: string | undefined;
     if (action === "pseudonymize") {
+      const rawValueSet = new Set(rawValues);
       const occupied = [
         ...activePrivacyMappings
-          .filter((mapping) => mapping.source !== detection.value)
+          .filter((mapping) => !rawValueSet.has(mapping.source))
           .map((mapping) => mapping.replacement),
         ...Object.values(activePrivacyReviewDecisions)
           .filter((decision) => decision.detectionId !== detection.id)
@@ -175,13 +183,15 @@ function PrivacyReviewPanel({ onClose }: { onClose: () => void }) {
     }
 
     if (replacement) {
-      upsertPrivacyMapping(active.id, {
-        source: detection.value,
-        replacement,
-        kind: "secret",
-      });
+      for (const rawValue of rawValues) {
+        upsertPrivacyMapping(active.id, {
+          source: rawValue,
+          replacement,
+          kind: "secret",
+        });
+      }
     } else {
-      removePrivacyMapping(active.id, detection.value);
+      removeReviewMappings(detection);
     }
 
     setPrivacyReviewDecision(active.id, {
@@ -193,9 +203,7 @@ function PrivacyReviewPanel({ onClose }: { onClose: () => void }) {
 
   function undoDecision(detection: StructuredPiiDetection) {
     const existing = activePrivacyReviewDecisions[detection.id];
-    if (existing?.action !== "ignore") {
-      removePrivacyMapping(active.id, detection.value);
-    }
+    if (existing?.action !== "ignore") removeReviewMappings(detection);
     removePrivacyReviewDecision(active.id, detection.id);
   }
 
@@ -272,6 +280,7 @@ function PrivacyReviewPanel({ onClose }: { onClose: () => void }) {
                 const samples = expanded
                   ? sampleContextsForDetection(detection, messages, 3)
                   : [];
+                const rawValues = rawValuesForDetection(detection, messages);
                 return (
                   <li
                     key={detection.id}
@@ -293,12 +302,21 @@ function PrivacyReviewPanel({ onClose }: { onClose: () => void }) {
                       <span className="text-muted">
                         {detection.occurrenceCount.toLocaleString()} {text.occurrences}
                       </span>
+                      {rawValues.length > 1 ? (
+                        <span className="text-muted">
+                          {rawValues.length} {text.variants}
+                        </span>
+                      ) : null}
                     </div>
 
                     <p className="mt-2 text-[11px] text-muted">{text.rawWarning}</p>
-                    <code className="mt-1 block max-h-24 overflow-auto rounded-lg bg-[#f5f1f8] px-2.5 py-2 text-xs text-foreground">
-                      {detection.value}
-                    </code>
+                    <div className="mt-1 max-h-28 space-y-1 overflow-auto rounded-lg bg-[#f5f1f8] px-2.5 py-2">
+                      {rawValues.map((rawValue) => (
+                        <code key={rawValue} className="block break-all text-xs text-foreground">
+                          {rawValue}
+                        </code>
+                      ))}
+                    </div>
 
                     {decision ? (
                       <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 p-2.5 text-xs text-emerald-800">
@@ -384,11 +402,7 @@ function PrivacyReviewPanel({ onClose }: { onClose: () => void }) {
 }
 
 export function PrivacyReviewLauncher() {
-  const {
-    dashboards,
-    activeId,
-    activePrivacyReviewDecisions,
-  } = useChat();
+  const { dashboards, activeId, activePrivacyReviewDecisions } = useChat();
   const { locale } = useLocale();
   const [open, setOpen] = useState(false);
   const active = dashboards.find((board) => board.id === activeId);
