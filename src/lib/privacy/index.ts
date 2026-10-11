@@ -28,6 +28,7 @@ export type {
 } from "@/lib/privacy/review";
 export {
   nextStructuredPiiReplacement,
+  rawValuesForDetection,
   redactPlaceholder,
   reviewSummary,
   sampleContextsForDetection,
