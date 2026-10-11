@@ -23,6 +23,10 @@ export type ChatMessage = {
   platform: ImportPlatform;
   type: MessageType;
   callDurationMs?: number;
+  /** 1-based source line in the imported file, when the parser can provide it. */
+  sourceLine?: number;
+  /** 1-based final source line for multiline messages. */
+  sourceEndLine?: number;
 };
 
 export type ParsedChat = {
