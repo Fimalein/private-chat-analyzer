@@ -15,6 +15,12 @@ import type {
   ParsedChat,
 } from "@/lib/chat-types";
 import { importChatFile } from "@/lib/import-chat";
+import {
+  normalizeEntityMappings,
+  removeEntityMapping,
+  upsertEntityMapping,
+  type EntityMapping,
+} from "@/lib/privacy";
 import { clearWordCloudCache } from "@/lib/word-cloud-cache";
 
 export const DEFAULT_DASHBOARD_ID = "default";
@@ -53,6 +59,10 @@ type ChatContextValue = {
   fileName: string | null;
   platform: ImportPlatform | null;
   analysis: ChatAnalysis | null;
+  activePrivacyMappings: EntityMapping[];
+  setPrivacyMappings: (dashboardId: string, mappings: EntityMapping[]) => void;
+  upsertPrivacyMapping: (dashboardId: string, mapping: EntityMapping) => void;
+  removePrivacyMapping: (dashboardId: string, source: string) => void;
   importFile: (file: File, platform: ImportPlatform) => Promise<void>;
   addImportedChat: (
     parsed: ParsedChat,
@@ -83,6 +93,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [nextImportIndex, setNextImportIndex] = useState(1);
   const [nextMergeIndex, setNextMergeIndex] = useState(1);
   const [fileName, setFileName] = useState<string | null>(null);
+  const [privacyMappingsByDashboard, setPrivacyMappingsByDashboard] = useState<
+    Record<string, EntityMapping[]>
+  >({});
 
   const active =
     dashboards.find((item) => item.id === activeId) ?? dashboards[0];
@@ -93,6 +106,40 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     }
     return analysisByDashboard.get(active.id) ?? null;
   }, [active]);
+
+  const activePrivacyMappings = active
+    ? privacyMappingsByDashboard[active.id] ?? []
+    : [];
+
+  const setPrivacyMappings = useCallback(
+    (dashboardId: string, mappings: EntityMapping[]) => {
+      setPrivacyMappingsByDashboard((current) => ({
+        ...current,
+        [dashboardId]: normalizeEntityMappings(mappings),
+      }));
+    },
+    [],
+  );
+
+  const upsertPrivacyMapping = useCallback(
+    (dashboardId: string, mapping: EntityMapping) => {
+      setPrivacyMappingsByDashboard((current) => ({
+        ...current,
+        [dashboardId]: upsertEntityMapping(current[dashboardId] ?? [], mapping),
+      }));
+    },
+    [],
+  );
+
+  const removePrivacyMappingForDashboard = useCallback(
+    (dashboardId: string, source: string) => {
+      setPrivacyMappingsByDashboard((current) => ({
+        ...current,
+        [dashboardId]: removeEntityMapping(current[dashboardId] ?? [], source),
+      }));
+    },
+    [],
+  );
 
   const addImportedChat = useCallback(
     (
@@ -138,6 +185,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       if (next.length === 0) return;
       clearWordCloudCache(id);
       analysisByDashboard.delete(id);
+      setPrivacyMappingsByDashboard((current) => {
+        const updated = { ...current };
+        delete updated[id];
+        return updated;
+      });
       setDashboards(next);
       setActiveId((current) => (current === id ? next[0].id : current));
     },
@@ -192,6 +244,14 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         .sort((a, b) => a.timestamp - b.timestamp);
 
       analysisByDashboard.set(id, analyzeChat(messages));
+      setPrivacyMappingsByDashboard((current) => {
+        const updated = { ...current };
+        for (const board of picked) delete updated[board.id];
+        // Merged chats intentionally start with an empty map so aliases from
+        // different imports are not silently assumed to identify one entity.
+        updated[id] = [];
+        return updated;
+      });
       setDashboards((current) => [
         ...current.filter((item) => !picked.some((board) => board.id === item.id)),
         {
@@ -220,6 +280,10 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       fileName,
       platform: active?.platform ?? null,
       analysis,
+      activePrivacyMappings,
+      setPrivacyMappings,
+      upsertPrivacyMapping,
+      removePrivacyMapping: removePrivacyMappingForDashboard,
       importFile,
       addImportedChat,
       removeDashboard,
@@ -228,6 +292,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
     [
       active?.platform,
       activeId,
+      activePrivacyMappings,
       analysis,
       dashboards,
       fileName,
@@ -235,6 +300,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       addImportedChat,
       mergeDashboards,
       removeDashboard,
+      removePrivacyMappingForDashboard,
+      setPrivacyMappings,
+      upsertPrivacyMapping,
     ],
   );
 
