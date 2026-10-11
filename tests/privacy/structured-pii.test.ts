@@ -59,12 +59,12 @@ describe("scanStructuredPiiText", () => {
     expect(results[0].kind).toBe("phone");
   });
 
-  it("marks URLs with secret-like query parameters as high risk", () => {
+  it("prioritizes a credential value embedded in a URL query", () => {
     const results = scanStructuredPiiText(
       "https://example.com/callback?token=TESTTOKEN000000000000",
     );
     expect(results).toHaveLength(1);
-    expect(results[0].kind).toBe("url");
+    expect(results[0].kind).toBe("credential");
     expect(results[0].severity).toBe("high");
   });
 
