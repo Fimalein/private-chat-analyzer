@@ -58,6 +58,25 @@ function fieldText(message: ChatMessage, field: StructuredPiiField) {
   return message.senderId;
 }
 
+export function rawValuesForDetection(
+  detection: StructuredPiiDetection,
+  messages: readonly ChatMessage[],
+) {
+  const byId = new Map(messages.map((message) => [message.id, message]));
+  const values = new Set<string>();
+
+  for (const occurrence of detection.occurrences) {
+    const message = byId.get(occurrence.messageId);
+    if (!message) continue;
+    const text = fieldText(message, occurrence.field);
+    const value = text.slice(occurrence.start, occurrence.end);
+    if (value) values.add(value);
+  }
+
+  if (values.size === 0 && detection.value) values.add(detection.value);
+  return [...values];
+}
+
 export function sampleContextsForDetection(
   detection: StructuredPiiDetection,
   messages: readonly ChatMessage[],
