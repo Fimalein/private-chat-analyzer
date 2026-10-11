@@ -7,3 +7,16 @@ export {
   upsertEntityMapping,
 } from "@/lib/privacy/entity-map";
 export { pseudonymizeMessage, pseudonymizeMessages } from "@/lib/privacy/pseudonymize";
+export type {
+  StructuredPiiDetection,
+  StructuredPiiField,
+  StructuredPiiKind,
+  StructuredPiiOccurrence,
+  StructuredPiiSeverity,
+} from "@/lib/privacy/structured-pii";
+export {
+  hasUnresolvedHighRiskStructuredPii,
+  scanStructuredPii,
+  scanStructuredPiiText,
+  unresolvedHighRiskStructuredPii,
+} from "@/lib/privacy/structured-pii";
