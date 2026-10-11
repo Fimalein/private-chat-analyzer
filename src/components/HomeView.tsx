@@ -6,6 +6,7 @@ import { useChat } from "@/components/ChatProvider";
 import { ImportReview, type PendingImport } from "@/components/ImportReview";
 import { Landing } from "@/components/Landing";
 import { MessageExplorerLauncher } from "@/components/MessageExplorerLauncher";
+import { PrivacyReviewLauncher } from "@/components/PrivacyReviewLauncher";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 
@@ -59,6 +60,7 @@ export function HomeView() {
       ) : (
         <>
           <Dashboard />
+          <PrivacyReviewLauncher />
           <MessageExplorerLauncher />
         </>
       )}

@@ -20,3 +20,17 @@ export {
   scanStructuredPiiText,
   unresolvedHighRiskStructuredPii,
 } from "@/lib/privacy/structured-pii";
+export type {
+  PrivacyReviewAction,
+  PrivacyReviewDecision,
+  PrivacyReviewDecisionMap,
+  PrivacySampleContext,
+} from "@/lib/privacy/review";
+export {
+  nextStructuredPiiReplacement,
+  rawValuesForDetection,
+  redactPlaceholder,
+  reviewSummary,
+  sampleContextsForDetection,
+  structuredPiiPrefix,
+} from "@/lib/privacy/review";
