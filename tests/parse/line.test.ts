@@ -12,6 +12,22 @@ function lineExport(time: string, date = "2024/11/8（週五）") {
   ].join("\n");
 }
 
+function japaneseLineExport() {
+  return [
+    "[LINE] 山田太郎とのトーク履歴",
+    "保存日時：2026/10/11 20:00",
+    "",
+    "2026/10/11(日)",
+    "9:10\t山田太郎\tこんにちは 👋",
+    '9:11\t佐藤花子\t"一行目',
+    '二行目"',
+    "9:12\t山田太郎\t[スタンプ]",
+    "9:13\t佐藤花子\t[写真]",
+    "9:14\t山田太郎\t[動画]",
+    "9:15\t佐藤花子\t通話時間 0:42",
+  ].join("\n");
+}
+
 describe("parseLineChat", () => {
   it.each([
     ["00:00", 0, 0],
@@ -71,5 +87,46 @@ describe("parseLineChat", () => {
     expect(stamp.getFullYear()).toBe(year);
     expect(stamp.getMonth()).toBe(month);
     expect(stamp.getDate()).toBe(day);
+  });
+
+  it("imports a Japanese LINE private-chat export with synthetic data", () => {
+    const chat = parseLineChat(japaneseLineExport());
+
+    expect(chat).toMatchObject({
+      usernameA: "佐藤花子",
+      usernameB: "山田太郎",
+    });
+    expect(chat.messages).toHaveLength(6);
+    expect(new Date(chat.messages[0].timestamp).getHours()).toBe(9);
+    expect(chat.messages[0]).toMatchObject({
+      senderName: "山田太郎",
+      content: "こんにちは 👋",
+      type: "text",
+      sourceLine: 5,
+      sourceEndLine: 5,
+    });
+  });
+
+  it("preserves multiline source ranges for Japanese LINE exports", () => {
+    const chat = parseLineChat(japaneseLineExport());
+
+    expect(chat.messages[1]).toMatchObject({
+      senderName: "佐藤花子",
+      content: "一行目\n二行目",
+      sourceLine: 6,
+      sourceEndLine: 7,
+    });
+  });
+
+  it("recognizes common Japanese LINE media and call records", () => {
+    const chat = parseLineChat(japaneseLineExport());
+
+    expect(chat.messages[2].type).toBe("sticker");
+    expect(chat.messages[3].type).toBe("image");
+    expect(chat.messages[4].type).toBe("video");
+    expect(chat.messages[5]).toMatchObject({
+      type: "call",
+      callDurationMs: 42_000,
+    });
   });
 });
