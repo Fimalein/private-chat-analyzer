@@ -1,7 +1,7 @@
 import type { ParsedChat } from "@/lib/chat-types";
 
 const LINE_HEADER_PATTERN =
-  /^\[LINE\]\s*(?:Chat history with\s+(.+?)|與\s*(.+?)\s*的聊天(?:記錄|紀錄))\s*$/i;
+  /^\[LINE\]\s*(?:Chat history with\s+(.+?)|與\s*(.+?)\s*的聊天(?:記錄|紀錄)|(.+?)とのトーク履歴)\s*$/i;
 
 export function parseLineChat(text: string): ParsedChat {
   const usernameB = extractLineUsernameB(text);
@@ -63,6 +63,8 @@ export function parseLineChat(text: string): ParsedChat {
       content,
       platform: "line",
       type: callDurationMs == null ? parseLineMessageType(content) : "call",
+      sourceLine: index + 1,
+      sourceEndLine: end + 1,
       ...(callDurationMs == null ? {} : { callDurationMs }),
     });
     index = end + 1;
@@ -136,7 +138,7 @@ function parseLineTime(
 ): { hour: number; minute: number } | null {
   const zh = /^(上午|下午)\s*(\d{1,2}):(\d{2})$/.exec(value);
   const en = /^(\d{1,2}):(\d{2})\s*(AM|PM)$/i.exec(value);
-  const twentyFourHour = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(value);
+  const twentyFourHour = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(value);
   if (twentyFourHour) {
     return {
       hour: Number(twentyFourHour[1]),
@@ -190,9 +192,27 @@ function parseLineMessageType(
   content: string,
 ): ParsedChat["messages"][number]["type"] {
   const normalized = content.trim().toLowerCase();
-  if (normalized === "[貼圖]" || normalized === "[sticker]") return "sticker";
-  if (normalized === "[照片]" || normalized === "[photo]") return "image";
-  if (normalized === "[影片]" || normalized === "[video]") return "video";
+  if (
+    normalized === "[貼圖]" ||
+    normalized === "[スタンプ]" ||
+    normalized === "[sticker]"
+  ) {
+    return "sticker";
+  }
+  if (
+    normalized === "[照片]" ||
+    normalized === "[写真]" ||
+    normalized === "[photo]"
+  ) {
+    return "image";
+  }
+  if (
+    normalized === "[影片]" ||
+    normalized === "[動画]" ||
+    normalized === "[video]"
+  ) {
+    return "video";
+  }
   return "text";
 }
 
@@ -219,5 +239,5 @@ export function extractLineUsernameB(text: string): string | null {
   const firstLine = text.replace(/^\uFEFF/, "").split(/\r?\n/, 1)[0]?.trim();
   if (!firstLine) return null;
   const match = LINE_HEADER_PATTERN.exec(firstLine);
-  return (match?.[1] ?? match?.[2])?.trim() || null;
+  return (match?.[1] ?? match?.[2] ?? match?.[3])?.trim() || null;
 }
