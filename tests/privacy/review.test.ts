@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import type { ChatMessage } from "@/lib/chat-types";
 import {
   nextStructuredPiiReplacement,
+  rawValuesForDetection,
   redactPlaceholder,
   reviewSummary,
   sampleContextsForDetection,
@@ -49,6 +50,30 @@ describe("privacy review helpers", () => {
     expect(samples).toHaveLength(3);
     expect(samples.map((sample) => sample.messageId)).toEqual(["m1", "m2", "m3"]);
     expect(samples[0].snippet).toContain("fake.user@example.test");
+  });
+
+  it("recovers every raw formatting variant in one canonical detection", () => {
+    const phoneDetection: StructuredPiiDetection = {
+      id: "phone-deadbeef",
+      kind: "phone",
+      severity: "high",
+      value: "090-0000-0000",
+      canonicalValue: "09000000000",
+      occurrenceCount: 2,
+      occurrences: [
+        { messageId: "p1", field: "content", start: 5, end: 18 },
+        { messageId: "p2", field: "content", start: 5, end: 21 },
+      ],
+    };
+    const messages = [
+      message("p1", "call 090-0000-0000", 1),
+      message("p2", "call +81 90 0000 0000", 2),
+    ];
+
+    expect(rawValuesForDetection(phoneDetection, messages)).toEqual([
+      "090-0000-0000",
+      "+81 90 0000 0000",
+    ]);
   });
 
   it("allocates the first unused typed placeholder", () => {
