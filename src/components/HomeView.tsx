@@ -5,6 +5,7 @@ import { useLayoutEffect, useState } from "react";
 import { useChat } from "@/components/ChatProvider";
 import { ImportReview, type PendingImport } from "@/components/ImportReview";
 import { Landing } from "@/components/Landing";
+import { MessageExplorerLauncher } from "@/components/MessageExplorerLauncher";
 import { SiteFooter } from "@/components/SiteFooter";
 import { SiteHeader } from "@/components/SiteHeader";
 
@@ -56,7 +57,10 @@ export function HomeView() {
           onCancel={showLanding}
         />
       ) : (
-        <Dashboard />
+        <>
+          <Dashboard />
+          <MessageExplorerLauncher />
+        </>
       )}
       <SiteFooter />
     </div>
