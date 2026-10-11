@@ -20,6 +20,8 @@ import {
   removeEntityMapping,
   upsertEntityMapping,
   type EntityMapping,
+  type PrivacyReviewDecision,
+  type PrivacyReviewDecisionMap,
 } from "@/lib/privacy";
 import { clearWordCloudCache } from "@/lib/word-cloud-cache";
 
@@ -60,9 +62,18 @@ type ChatContextValue = {
   platform: ImportPlatform | null;
   analysis: ChatAnalysis | null;
   activePrivacyMappings: EntityMapping[];
+  activePrivacyReviewDecisions: PrivacyReviewDecisionMap;
   setPrivacyMappings: (dashboardId: string, mappings: EntityMapping[]) => void;
   upsertPrivacyMapping: (dashboardId: string, mapping: EntityMapping) => void;
   removePrivacyMapping: (dashboardId: string, source: string) => void;
+  setPrivacyReviewDecision: (
+    dashboardId: string,
+    decision: PrivacyReviewDecision,
+  ) => void;
+  removePrivacyReviewDecision: (
+    dashboardId: string,
+    detectionId: string,
+  ) => void;
   importFile: (file: File, platform: ImportPlatform) => Promise<void>;
   addImportedChat: (
     parsed: ParsedChat,
@@ -96,6 +107,8 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const [privacyMappingsByDashboard, setPrivacyMappingsByDashboard] = useState<
     Record<string, EntityMapping[]>
   >({});
+  const [privacyReviewDecisionsByDashboard, setPrivacyReviewDecisionsByDashboard] =
+    useState<Record<string, PrivacyReviewDecisionMap>>({});
 
   const active =
     dashboards.find((item) => item.id === activeId) ?? dashboards[0];
@@ -110,6 +123,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
   const activePrivacyMappings = active
     ? privacyMappingsByDashboard[active.id] ?? []
     : [];
+  const activePrivacyReviewDecisions = active
+    ? privacyReviewDecisionsByDashboard[active.id] ?? {}
+    : {};
 
   const setPrivacyMappings = useCallback(
     (dashboardId: string, mappings: EntityMapping[]) => {
@@ -137,6 +153,33 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         ...current,
         [dashboardId]: removeEntityMapping(current[dashboardId] ?? [], source),
       }));
+    },
+    [],
+  );
+
+  const setPrivacyReviewDecision = useCallback(
+    (dashboardId: string, decision: PrivacyReviewDecision) => {
+      setPrivacyReviewDecisionsByDashboard((current) => ({
+        ...current,
+        [dashboardId]: {
+          ...(current[dashboardId] ?? {}),
+          [decision.detectionId]: decision,
+        },
+      }));
+    },
+    [],
+  );
+
+  const removePrivacyReviewDecision = useCallback(
+    (dashboardId: string, detectionId: string) => {
+      setPrivacyReviewDecisionsByDashboard((current) => {
+        const nextForDashboard = { ...(current[dashboardId] ?? {}) };
+        delete nextForDashboard[detectionId];
+        return {
+          ...current,
+          [dashboardId]: nextForDashboard,
+        };
+      });
     },
     [],
   );
@@ -186,6 +229,11 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       clearWordCloudCache(id);
       analysisByDashboard.delete(id);
       setPrivacyMappingsByDashboard((current) => {
+        const updated = { ...current };
+        delete updated[id];
+        return updated;
+      });
+      setPrivacyReviewDecisionsByDashboard((current) => {
         const updated = { ...current };
         delete updated[id];
         return updated;
@@ -252,6 +300,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
         updated[id] = [];
         return updated;
       });
+      setPrivacyReviewDecisionsByDashboard((current) => {
+        const updated = { ...current };
+        for (const board of picked) delete updated[board.id];
+        updated[id] = {};
+        return updated;
+      });
       setDashboards((current) => [
         ...current.filter((item) => !picked.some((board) => board.id === item.id)),
         {
@@ -281,9 +335,12 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       platform: active?.platform ?? null,
       analysis,
       activePrivacyMappings,
+      activePrivacyReviewDecisions,
       setPrivacyMappings,
       upsertPrivacyMapping,
       removePrivacyMapping: removePrivacyMappingForDashboard,
+      setPrivacyReviewDecision,
+      removePrivacyReviewDecision,
       importFile,
       addImportedChat,
       removeDashboard,
@@ -293,6 +350,7 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       active?.platform,
       activeId,
       activePrivacyMappings,
+      activePrivacyReviewDecisions,
       analysis,
       dashboards,
       fileName,
@@ -301,7 +359,9 @@ export function ChatProvider({ children }: { children: ReactNode }) {
       mergeDashboards,
       removeDashboard,
       removePrivacyMappingForDashboard,
+      removePrivacyReviewDecision,
       setPrivacyMappings,
+      setPrivacyReviewDecision,
       upsertPrivacyMapping,
     ],
   );
