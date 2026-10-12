@@ -2,6 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { useLayoutEffect, useState } from "react";
+import { ChatGptExportLauncher } from "@/components/ChatGptExportLauncher";
 import { useChat } from "@/components/ChatProvider";
 import { ImportReview, type PendingImport } from "@/components/ImportReview";
 import { Landing } from "@/components/Landing";
@@ -60,6 +61,7 @@ export function HomeView() {
       ) : (
         <>
           <Dashboard />
+          <ChatGptExportLauncher />
           <PrivacyReviewLauncher />
           <MessageExplorerLauncher />
         </>
