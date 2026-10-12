@@ -130,8 +130,8 @@ function buildAnalysisIndex(
         previousMessageId: exportMessageId(previousIndex),
         messageId: exportMessageId(currentIndex),
         gapMs: gap.gapMs,
-        fromSender: gap.fromSenderId,
-        toSender: gap.toSenderId,
+        fromSender: messages[previousIndex]?.senderName ?? "UNKNOWN",
+        toSender: messages[currentIndex]?.senderName ?? "UNKNOWN",
       };
     });
 
