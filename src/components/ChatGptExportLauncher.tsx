@@ -41,6 +41,7 @@ export function ChatGptExportLauncher() {
   const audit = useMemo(() => auditPreparedExport(prepared), [prepared]);
 
   if (!active || active.kind === "default" || active.messages.length === 0) return null;
+  const activeMessages = active.messages;
 
   const text =
     locale === "en"
@@ -86,7 +87,7 @@ export function ChatGptExportLauncher() {
   async function exportPack() {
     setStatus("working");
     try {
-      const pack = buildChatGptExportPack(active.messages, activePrivacyMappings);
+      const pack = buildChatGptExportPack(activeMessages, activePrivacyMappings);
       const files = pack.files.map(
         (file) => new File([file.content], file.name, { type: file.type }),
       );
