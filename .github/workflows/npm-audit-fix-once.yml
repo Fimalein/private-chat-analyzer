@@ -1,0 +1,38 @@
+name: One-time npm audit fix
+
+on:
+  push:
+    branches:
+      - security/npm-audit-triage
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: security/npm-audit-triage
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Apply non-breaking audit fixes to lockfile
+        run: npm audit fix --package-lock-only || true
+      - run: npm ci
+      - run: npm test
+      - run: npm run build
+      - name: Commit lockfile changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package-lock.json
+          if git diff --cached --quiet; then
+            echo "No lockfile changes to commit"
+            exit 0
+          fi
+          git commit -m "security(deps): apply non-breaking npm audit fixes [skip ci]"
+          git push origin HEAD:security/npm-audit-triage
