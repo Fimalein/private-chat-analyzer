@@ -21,7 +21,7 @@ jobs:
           node-version: 22
           cache: npm
       - name: Apply non-breaking audit fixes to lockfile
-        run: npm audit fix --package-lock-only
+        run: npm audit fix --package-lock-only || true
       - run: npm ci
       - run: npm test
       - run: npm run build
