@@ -32,7 +32,7 @@ jobs:
         run: npm ci
 
       - name: Install spike-only dependencies
-        run: npm install --no-save --package-lock=false @doccloak/core@0.13.0 @huggingface/transformers@4.2.0
+        run: npm install --no-save @doccloak/core@0.13.0 @huggingface/transformers@4.2.0
 
       - name: Run synthetic Japanese benchmark
         run: node scripts/eval-doccloak-ja.mjs
