@@ -1,13 +1,12 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { basename, extname } from "node:path";
+import { extname } from "node:path";
 
 const tracked = execFileSync("git", ["ls-files", "-z"], { encoding: "utf8" })
   .split("\0")
   .filter(Boolean);
 
 const failures = [];
-const warnings = [];
 
 const SYNTHETIC_FIXTURE_ROOT = "tests/fixtures/synthetic/";
 const TEXT_EXTENSIONS = new Set([
@@ -121,7 +120,7 @@ for (const file of tracked.filter(shouldScanText)) {
     }
   }
 
-  for (const match of text.matchAll(/\b\d{3}-\d{4}\b/g)) {
+  for (const match of text.matchAll(/(?<![\d-])\d{3}-\d{4}(?![\d-])/g)) {
     if (match[0] !== "000-0000") {
       fail(file, `real-looking postal code found: ${match[0]}`);
     }
@@ -154,10 +153,6 @@ if (failures.length > 0) {
     "\nUse fabricated fixtures only. Detection is conservative and does not prove anonymization; see docs/privacy/public-repository-policy.md.\n",
   );
   process.exit(1);
-}
-
-if (warnings.length > 0) {
-  for (const warning of warnings) console.warn(warning);
 }
 
 console.log(`Public-repository privacy guard passed for ${tracked.length} tracked files.`);
