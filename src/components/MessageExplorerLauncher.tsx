@@ -17,6 +17,10 @@ import {
   prepareExplorerMessages,
   type MessageExplorerFilters,
 } from "@/lib/analysis/message-explorer";
+import {
+  ANALYSIS_SIGNAL_KINDS,
+  type AnalysisSignalKind,
+} from "@/lib/analysis/analysis-signals";
 import { pseudonymizeMessages } from "@/lib/privacy";
 
 const PAGE_SIZE = 100;
@@ -42,6 +46,16 @@ function typeLabel(type: MessageType, locale: "zh" | "en") {
     system: ["系統", "System"],
   };
   return labels[type][locale === "en" ? 1 : 0];
+}
+
+function signalLabel(signal: AnalysisSignalKind, locale: "zh" | "en") {
+  const labels: Record<AnalysisSignalKind, [string, string]> = {
+    conflict: ["衝突候選", "Conflict candidate"],
+    repair: ["修復候選", "Repair candidate"],
+    person_attack: ["人身攻擊候選", "Person-attack candidate"],
+    distance_breakup: ["疏離 / 分手候選", "Distance / breakup candidate"],
+  };
+  return labels[signal][locale === "en" ? 1 : 0];
 }
 
 function messageText(message: ChatMessage) {
@@ -107,12 +121,16 @@ function ExplorerPanel({
     locale === "en"
       ? {
           title: "Message explorer",
-          local: "Filters run locally in this browser.",
+          local: "Filters and candidate signals run locally in this browser.",
           search: "Search messages or sender",
           allSenders: "All senders",
           allTypes: "All types",
           replyGap: "Reply gap",
           anyGap: "Any gap",
+          signal: "Analysis signal",
+          anySignal: "Any signal",
+          signalDisclaimer:
+            "Signal flags are simple heuristic navigation candidates, not truth labels about intent, abuse, or relationship state.",
           sort: "Sort",
           oldest: "Oldest first",
           newest: "Newest first",
@@ -131,12 +149,16 @@ function ExplorerPanel({
         }
       : {
           title: "訊息搜尋",
-          local: "所有篩選都只在這個瀏覽器內執行。",
+          local: "所有篩選與候選訊號都只在這個瀏覽器內執行。",
           search: "搜尋訊息或傳送者",
           allSenders: "所有傳送者",
           allTypes: "所有類型",
           replyGap: "回覆間隔",
           anyGap: "不限",
+          signal: "分析候選",
+          anySignal: "不限候選",
+          signalDisclaimer:
+            "候選訊號只是簡單的啟發式導覽，不代表對意圖、攻擊或關係狀態的事實判定。",
           sort: "排序",
           oldest: "舊到新",
           newest: "新到舊",
@@ -250,6 +272,25 @@ function ExplorerPanel({
               </select>
             </label>
             <label className="flex items-center gap-2 rounded-xl border border-card-border bg-white px-3 py-2 text-xs text-muted">
+              <span>{text.signal}</span>
+              <select
+                value={filters.signal}
+                onChange={(event) =>
+                  patchFilters({
+                    signal: event.target.value as MessageExplorerFilters["signal"],
+                  })
+                }
+                className="min-w-0 flex-1 bg-transparent text-sm text-foreground"
+              >
+                <option value="all">{text.anySignal}</option>
+                {ANALYSIS_SIGNAL_KINDS.map((signal) => (
+                  <option key={signal} value={signal}>
+                    {signalLabel(signal, locale)}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="flex items-center gap-2 rounded-xl border border-card-border bg-white px-3 py-2 text-xs text-muted sm:col-span-2">
               <span>{text.sort}</span>
               <select
                 value={filters.sort}
@@ -266,6 +307,7 @@ function ExplorerPanel({
               </select>
             </label>
           </div>
+          <p className="mt-2 text-[11px] leading-5 text-muted">{text.signalDisclaimer}</p>
           <div className="mt-2 flex items-center justify-between gap-3 text-xs text-muted">
             <span>{results.length.toLocaleString()} {text.results}</span>
             <button
@@ -314,6 +356,14 @@ function ExplorerPanel({
                           {text.gap} {formatDuration(message.replyGapMs)}
                         </span>
                       ) : null}
+                      {message.analysisSignals.map((signal) => (
+                        <span
+                          key={signal}
+                          className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-amber-800"
+                        >
+                          {signalLabel(signal, locale)}
+                        </span>
+                      ))}
                     </div>
                     <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-5 text-foreground">
                       {messageText(message)}
