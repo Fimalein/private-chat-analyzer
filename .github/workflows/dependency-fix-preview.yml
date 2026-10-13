@@ -23,8 +23,8 @@ jobs:
       - name: Upgrade aligned Next packages
         run: npm install --save-exact next@16.4.0 eslint-config-next@16.4.0
       - name: Apply non-breaking transitive audit fixes
-        run: npm audit fix
-      - name: Production audit
+        run: npm audit fix || true
+      - name: Production audit must be clean
         run: npm audit --omit=dev --audit-level=high
       - name: Test
         run: npm test
