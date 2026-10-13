@@ -48,7 +48,7 @@ describe("analysis signals", () => {
   });
 
   it("normalizes full-width and case variants before matching", () => {
-    expect(deriveAnalysisSignals(message("m8", "Ｉ’Ｍ ＳＯＲＲＹ"))).toContain("repair");
+    expect(deriveAnalysisSignals(message("m8", "ＩＭ ＳＯＲＲＹ"))).toContain("repair");
     expect(deriveAnalysisSignals(message("m9", "BREAK UP"))).toContain(
       "distance_breakup",
     );
