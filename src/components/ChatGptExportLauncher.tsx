@@ -8,6 +8,7 @@ import {
   buildChatGptExportPack,
   ExportBlockedError,
   prepareExportMessages,
+  type ChatGptExportDateMode,
   type ChatGptExportFile,
 } from "@/lib/export/chatgpt-pack";
 
@@ -23,6 +24,13 @@ function downloadFile(file: ChatGptExportFile) {
   window.setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 
+function randomWeekShift() {
+  const values = new Uint32Array(1);
+  window.crypto.getRandomValues(values);
+  const magnitude = (values[0] % 260) + 1;
+  return values[0] % 2 === 0 ? magnitude : -magnitude;
+}
+
 export function ChatGptExportLauncher() {
   const { dashboards, activeId, activePrivacyMappings } = useChat();
   const { locale } = useLocale();
@@ -30,6 +38,10 @@ export function ChatGptExportLauncher() {
   const [status, setStatus] = useState<"idle" | "working" | "done" | "error">(
     "idle",
   );
+  const [dateModeKind, setDateModeKind] = useState<
+    ChatGptExportDateMode["mode"]
+  >("exact");
+  const [weekShift, setWeekShift] = useState(52);
   const active = dashboards.find((board) => board.id === activeId);
   const prepared = useMemo(
     () =>
@@ -42,6 +54,18 @@ export function ChatGptExportLauncher() {
 
   if (!active || active.kind === "default" || active.messages.length === 0) return null;
   const activeMessages = active.messages;
+
+  const shiftValid =
+    dateModeKind !== "shift_weeks" ||
+    (Number.isSafeInteger(weekShift) &&
+      weekShift !== 0 &&
+      Math.abs(weekShift) <= 5200);
+  const selectedDateMode: ChatGptExportDateMode =
+    dateModeKind === "shift_weeks"
+      ? { mode: "shift_weeks", weeks: weekShift }
+      : dateModeKind === "relative_day"
+        ? { mode: "relative_day" }
+        : { mode: "exact" };
 
   const text =
     locale === "en"
@@ -58,6 +82,21 @@ export function ChatGptExportLauncher() {
             "Medium-risk items do not block export. Review them if URLs, IP addresses, postal codes, or long IDs could identify someone.",
           ready:
             "No structured high-risk identifiers were found after applying the current privacy mappings.",
+          datePrivacy: "Date privacy",
+          exactTitle: "Keep exact timestamps",
+          exactBody:
+            "Current behavior. Best chronology fidelity, but original calendar dates remain in the export.",
+          shiftTitle: "Shift by whole weeks",
+          shiftBody:
+            "Moves every timestamp by the same whole-week offset. Ordering, weekdays, and intervals are preserved. The offset itself is not exported.",
+          relativeTitle: "Relative day + local clock",
+          relativeBody:
+            "Replaces calendar dates with DAY_0001, DAY_0002, and so on while keeping local clock time and elapsed durations.",
+          weeks: "Week offset",
+          random: "Randomize",
+          invalidShift: "Use a non-zero whole number of weeks between -5200 and 5200.",
+          explicit:
+            "Date anonymization is optional and never enabled silently. The selected mode is recorded in every export pack.",
           contents: "Files",
           export: "Share / download 4 files",
           working: "Generating…",
@@ -76,6 +115,17 @@ export function ChatGptExportLauncher() {
           blocked: "高風險資訊完成假名化或遮蔽前，匯出會被阻止。請先使用隱私檢查。",
           warning: "中風險項目不會阻止匯出；若 URL、IP、郵遞區號或長 ID 可能識別個人，請先檢查。",
           ready: "套用目前的隱私規則後，未偵測到結構化高風險識別資訊。",
+          datePrivacy: "日期隱私",
+          exactTitle: "保留精確時間",
+          exactBody: "目前的行為。時間序列最完整，但原始日曆日期會保留在匯出中。",
+          shiftTitle: "整週平移",
+          shiftBody: "所有時間套用相同的整週位移；順序、星期與時間間隔保持不變，位移量不會寫入匯出檔。",
+          relativeTitle: "相對日 + 本地時間",
+          relativeBody: "將日曆日期替換為 DAY_0001、DAY_0002…，保留本地時鐘與經過時間。",
+          weeks: "週數位移",
+          random: "隨機",
+          invalidShift: "請使用 -5200 到 5200 之間、非 0 的整數週數。",
+          explicit: "日期匿名化是選用功能，不會默默啟用；所選模式會記錄在匯出套件中。",
           contents: "檔案",
           export: "分享 / 下載 4 個檔案",
           working: "產生中…",
@@ -85,9 +135,16 @@ export function ChatGptExportLauncher() {
         };
 
   async function exportPack() {
+    if (!shiftValid) {
+      setStatus("error");
+      return;
+    }
+
     setStatus("working");
     try {
-      const pack = buildChatGptExportPack(activeMessages, activePrivacyMappings);
+      const pack = buildChatGptExportPack(activeMessages, activePrivacyMappings, {
+        dateMode: selectedDateMode,
+      });
       const files = pack.files.map(
         (file) => new File([file.content], file.name, { type: file.type }),
       );
@@ -142,7 +199,7 @@ export function ChatGptExportLauncher() {
             if (event.target === event.currentTarget) setOpen(false);
           }}
         >
-          <section className="w-full max-w-lg rounded-2xl border border-card-border bg-white p-4 shadow-2xl sm:p-5">
+          <section className="max-h-[92vh] w-full max-w-lg overflow-y-auto rounded-2xl border border-card-border bg-white p-4 shadow-2xl sm:p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="font-serif text-xl font-bold text-accent-deep">
@@ -184,6 +241,88 @@ export function ChatGptExportLauncher() {
             ) : null}
 
             <div className="mt-4">
+              <h3 className="text-sm font-semibold text-accent-deep">
+                {text.datePrivacy}
+              </h3>
+              <p className="mt-1 text-[11px] leading-5 text-muted">{text.explicit}</p>
+              <div className="mt-2 space-y-2">
+                {(
+                  [
+                    ["exact", text.exactTitle, text.exactBody],
+                    ["shift_weeks", text.shiftTitle, text.shiftBody],
+                    ["relative_day", text.relativeTitle, text.relativeBody],
+                  ] as const
+                ).map(([mode, title, body]) => (
+                  <label
+                    key={mode}
+                    className={`block cursor-pointer rounded-xl border p-3 ${
+                      dateModeKind === mode
+                        ? "border-accent bg-[#faf5ff]"
+                        : "border-card-border bg-[#faf8fc]"
+                    }`}
+                  >
+                    <span className="flex items-start gap-2">
+                      <input
+                        type="radio"
+                        name="export-date-mode"
+                        value={mode}
+                        checked={dateModeKind === mode}
+                        onChange={() => {
+                          setDateModeKind(mode);
+                          setStatus("idle");
+                        }}
+                        className="mt-1"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-accent-deep">
+                          {title}
+                        </span>
+                        <span className="mt-0.5 block text-xs leading-5 text-muted">
+                          {body}
+                        </span>
+                      </span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              {dateModeKind === "shift_weeks" ? (
+                <div className="mt-2 rounded-xl border border-card-border bg-white p-3">
+                  <div className="flex items-center gap-2">
+                    <label className="flex min-w-0 flex-1 items-center gap-2 text-xs font-semibold text-accent-deep">
+                      <span>{text.weeks}</span>
+                      <input
+                        type="number"
+                        min={-5200}
+                        max={5200}
+                        step={1}
+                        value={weekShift}
+                        onChange={(event) => {
+                          setWeekShift(Number(event.target.value));
+                          setStatus("idle");
+                        }}
+                        className="min-w-0 flex-1 rounded-lg border border-card-border px-2 py-1.5 font-mono text-sm"
+                      />
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setWeekShift(randomWeekShift());
+                        setStatus("idle");
+                      }}
+                      className="rounded-full border border-card-border px-3 py-1.5 text-xs font-semibold text-accent-deep hover:border-accent"
+                    >
+                      {text.random}
+                    </button>
+                  </div>
+                  {!shiftValid ? (
+                    <p className="mt-2 text-xs text-rose-700">{text.invalidShift}</p>
+                  ) : null}
+                </div>
+              ) : null}
+            </div>
+
+            <div className="mt-4">
               <h3 className="text-sm font-semibold text-accent-deep">{text.contents}</h3>
               <ul className="mt-2 space-y-1 rounded-xl border border-card-border bg-[#faf8fc] p-3 font-mono text-xs text-foreground">
                 <li>chat_redacted.txt</li>
@@ -203,7 +342,7 @@ export function ChatGptExportLauncher() {
               ) : null}
               <button
                 type="button"
-                disabled={highCount > 0 || status === "working"}
+                disabled={highCount > 0 || !shiftValid || status === "working"}
                 onClick={exportPack}
                 className="rounded-full bg-accent-deep px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
