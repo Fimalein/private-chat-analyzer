@@ -1,0 +1,47 @@
+name: DocCloak Japanese benchmark
+
+on:
+  workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/eval-doccloak-ja.mjs"
+      - "tests/fixtures/synthetic/doccloak-ja-benchmark.json"
+      - ".github/workflows/doccloak-ja-benchmark.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  benchmark:
+    name: Synthetic Japanese NER benchmark
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install app dependencies
+        run: npm ci
+
+      - name: Install spike-only dependencies
+        run: npm install --no-save @doccloak/core@0.13.0 @huggingface/transformers@4.2.0
+
+      - name: Run synthetic Japanese benchmark
+        run: node scripts/eval-doccloak-ja.mjs
+
+      - name: Upload benchmark result
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: doccloak-ja-benchmark
+          path: benchmark-output/doccloak-ja-results.json
+          if-no-files-found: warn
+          retention-days: 7

@@ -1,0 +1,145 @@
+{
+  "marker": "SYNTHETIC_FIXTURE",
+  "description": "Fabricated Japanese chat snippets for evaluating local entity detection. Every name, organization and place was written for this test and is not derived from a real conversation.",
+  "cases": [
+    {
+      "id": "person-01",
+      "text": "昨日、山田太郎さんから連絡が来たよ。",
+      "gold": [{ "value": "山田太郎", "type": "PERSON" }]
+    },
+    {
+      "id": "person-02",
+      "text": "佐藤花子に資料を送っておいて。",
+      "gold": [{ "value": "佐藤花子", "type": "PERSON" }]
+    },
+    {
+      "id": "person-03",
+      "text": "青瀬陽菜と水城奏太があとで合流する。",
+      "gold": [
+        { "value": "青瀬陽菜", "type": "PERSON" },
+        { "value": "水城奏太", "type": "PERSON" }
+      ]
+    },
+    {
+      "id": "person-04",
+      "text": "担当は桜庭結衣さんです。",
+      "gold": [{ "value": "桜庭結衣", "type": "PERSON" }]
+    },
+    {
+      "id": "person-05",
+      "text": "森川蓮司さん、今日の集合時間わかる？",
+      "gold": [{ "value": "森川蓮司", "type": "PERSON" }]
+    },
+    {
+      "id": "person-06",
+      "text": "白石みのりから返信きた。",
+      "gold": [{ "value": "白石みのり", "type": "PERSON" }]
+    },
+    {
+      "id": "company-01",
+      "text": "青空電機株式会社から見積書が届いた。",
+      "gold": [{ "value": "青空電機株式会社", "type": "COMPANY" }]
+    },
+    {
+      "id": "company-02",
+      "text": "株式会社星見技研の説明会に申し込んだ。",
+      "gold": [{ "value": "株式会社星見技研", "type": "COMPANY" }]
+    },
+    {
+      "id": "company-03",
+      "text": "朝凪物流合同会社に荷物をお願いした。",
+      "gold": [{ "value": "朝凪物流合同会社", "type": "COMPANY" }]
+    },
+    {
+      "id": "company-04",
+      "text": "青葉エナジーと月影システム株式会社で共同研究するらしい。",
+      "gold": [
+        { "value": "青葉エナジー", "type": "COMPANY" },
+        { "value": "月影システム株式会社", "type": "COMPANY" }
+      ]
+    },
+    {
+      "id": "company-05",
+      "text": "星空材料研究所のインターンに応募した。",
+      "gold": [{ "value": "星空材料研究所", "type": "COMPANY" }]
+    },
+    {
+      "id": "company-06",
+      "text": "株式会社朝霧データから連絡があった。",
+      "gold": [{ "value": "株式会社朝霧データ", "type": "COMPANY" }]
+    },
+    {
+      "id": "address-01",
+      "text": "待ち合わせは朝凪市桜丘区でどう？",
+      "gold": [{ "value": "朝凪市桜丘区", "type": "ADDRESS" }]
+    },
+    {
+      "id": "address-02",
+      "text": "青空県星見市に引っ越す予定。",
+      "gold": [{ "value": "青空県星見市", "type": "ADDRESS" }]
+    },
+    {
+      "id": "address-03",
+      "text": "会場は星見市若葉町1-2-3です。",
+      "gold": [{ "value": "星見市若葉町1-2-3", "type": "ADDRESS" }]
+    },
+    {
+      "id": "address-04",
+      "text": "月見県青空市の駅前で待ってる。",
+      "gold": [{ "value": "月見県青空市", "type": "ADDRESS" }]
+    },
+    {
+      "id": "address-05",
+      "text": "青空県朝凪市花見区まで電車で行く。",
+      "gold": [{ "value": "青空県朝凪市花見区", "type": "ADDRESS" }]
+    },
+    {
+      "id": "address-06",
+      "text": "送り先は星見市月影町四丁目です。",
+      "gold": [{ "value": "星見市月影町四丁目", "type": "ADDRESS" }]
+    },
+    {
+      "id": "mixed-01",
+      "text": "山田太郎が青空電機株式会社の朝凪市桜丘区オフィスに行った。",
+      "gold": [
+        { "value": "山田太郎", "type": "PERSON" },
+        { "value": "青空電機株式会社", "type": "COMPANY" },
+        { "value": "朝凪市桜丘区", "type": "ADDRESS" }
+      ]
+    },
+    {
+      "id": "mixed-02",
+      "text": "佐藤花子は株式会社星見技研から青空県星見市へ移動中。",
+      "gold": [
+        { "value": "佐藤花子", "type": "PERSON" },
+        { "value": "株式会社星見技研", "type": "COMPANY" },
+        { "value": "青空県星見市", "type": "ADDRESS" }
+      ]
+    },
+    {
+      "id": "mixed-03",
+      "text": "桜庭結衣と森川蓮司が月影システム株式会社の月見県青空市支店で打ち合わせ。",
+      "gold": [
+        { "value": "桜庭結衣", "type": "PERSON" },
+        { "value": "森川蓮司", "type": "PERSON" },
+        { "value": "月影システム株式会社", "type": "COMPANY" },
+        { "value": "月見県青空市", "type": "ADDRESS" }
+      ]
+    },
+    {
+      "id": "negative-01",
+      "text": "今日はラーメン食べたい。",
+      "gold": []
+    },
+    {
+      "id": "negative-02",
+      "text": "あと5分で着くよ。",
+      "gold": []
+    },
+    {
+      "id": "negative-03",
+      "text": "明日の実験、午後からでも大丈夫？",
+      "gold": []
+    }
+  ]
+}
