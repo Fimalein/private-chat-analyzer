@@ -10,7 +10,7 @@ import {
   SYNTHETIC_EXPORT_MESSAGES,
   SYNTHETIC_EXPORT_RAW_VALUES,
   SYNTHETIC_EXPORT_SENSITIVE,
-} from "@/../tests/fixtures/synthetic/export-leak-regression";
+} from "../fixtures/synthetic/export-leak-regression";
 
 function msg(
   id: string,
