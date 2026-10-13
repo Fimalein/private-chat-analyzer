@@ -3,6 +3,10 @@ import {
   attachReplyGaps,
   type ChatMessageWithReplyGap,
 } from "@/lib/analysis/reply-gaps";
+import {
+  attachAnalysisSignals,
+  type AnalysisSignalKind,
+} from "@/lib/analysis/analysis-signals";
 
 export type MessageExplorerSort = "oldest" | "newest" | "reply-gap";
 
@@ -13,10 +17,13 @@ export type MessageExplorerFilters = {
   dateFrom: string;
   dateTo: string;
   minReplyGapMs: number;
+  signal: AnalysisSignalKind | "all";
   sort: MessageExplorerSort;
 };
 
-export type ExplorerMessage = ChatMessageWithReplyGap;
+export type ExplorerMessage = ChatMessageWithReplyGap & {
+  analysisSignals: AnalysisSignalKind[];
+};
 
 export const DEFAULT_EXPLORER_FILTERS: MessageExplorerFilters = {
   query: "",
@@ -25,6 +32,7 @@ export const DEFAULT_EXPLORER_FILTERS: MessageExplorerFilters = {
   dateFrom: "",
   dateTo: "",
   minReplyGapMs: 0,
+  signal: "all",
   sort: "oldest",
 };
 
@@ -48,7 +56,7 @@ function parseLocalDateBoundary(value: string, endOfDay: boolean) {
 export function prepareExplorerMessages(
   messages: readonly ChatMessage[],
 ): ExplorerMessage[] {
-  return attachReplyGaps(messages);
+  return attachAnalysisSignals(attachReplyGaps(messages));
 }
 
 export function filterAndSortExplorerMessages(
@@ -80,6 +88,12 @@ export function filterAndSortExplorerMessages(
     if (
       filters.minReplyGapMs > 0 &&
       (message.replyGapMs == null || message.replyGapMs < filters.minReplyGapMs)
+    ) {
+      return false;
+    }
+    if (
+      filters.signal !== "all" &&
+      !message.analysisSignals.includes(filters.signal)
     ) {
       return false;
     }
