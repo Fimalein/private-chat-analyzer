@@ -77,7 +77,7 @@ for (const file of tracked) {
 function shouldScanText(file) {
   const extension = extname(file).toLowerCase();
   if (!TEXT_EXTENSIONS.has(extension)) return false;
-  return file.startsWith("tests/") || file.startsWith("examples/") || file.startsWith("docs/examples/");
+  return file.startsWith("tests/") || file.startsWith("examples/") || file.startsWith("docs/examples/") || file.startsWith("src/");
 }
 
 function reservedEmail(value) {
@@ -110,23 +110,23 @@ for (const file of tracked.filter(shouldScanText)) {
 
   for (const match of text.matchAll(/\b[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}\b/gi)) {
     if (!reservedEmail(match[0])) {
-      fail(file, `non-reserved email-like value found: ${match[0]}`);
+      fail(file, "non-reserved email-like value found");
     }
   }
 
   for (const match of text.matchAll(/(?:\+81[-\s]?(?:70|80|90)|0(?:70|80|90))[-\s]?\d{4}[-\s]?\d{4}/g)) {
     if (!syntheticPhone(match[0])) {
-      fail(file, `real-looking Japanese mobile number found: ${match[0]}`);
+      fail(file, "real-looking Japanese mobile number found");
     }
   }
 
   for (const match of text.matchAll(/(?<![\d-])\d{3}-\d{4}(?![\d-])/g)) {
     if (match[0] !== "000-0000") {
-      fail(file, `real-looking postal code found: ${match[0]}`);
+      fail(file, "real-looking postal code found");
     }
   }
 
-  for (const match of text.matchAll(/(?:api[_-]?key|access[_-]?token|auth[_-]?token|token|secret|password|passwd)\s*[:=]\s*["']?([A-Za-z0-9._~+\/-]{12,})/gi)) {
+  for (const match of text.matchAll(/["']?(?:api[_-]?key|access[_-]?token|auth[_-]?token|token|secret|password|passwd)["']?\s*[:=]\s*["']([A-Za-z0-9._~+\/-]{12,})["']/gi)) {
     const value = match[1];
     if (!syntheticSecret(value)) {
       fail(file, "credential-like value is not explicitly synthetic");
