@@ -5,6 +5,12 @@ import {
   ExportBlockedError,
 } from "@/lib/export/chatgpt-pack";
 import type { EntityMapping } from "@/lib/privacy";
+import {
+  SYNTHETIC_EXPORT_MAPPINGS,
+  SYNTHETIC_EXPORT_MESSAGES,
+  SYNTHETIC_EXPORT_RAW_VALUES,
+  SYNTHETIC_EXPORT_SENSITIVE,
+} from "../fixtures/synthetic/export-leak-regression";
 
 function msg(
   id: string,
@@ -103,5 +109,64 @@ describe("buildChatGptExportPack", () => {
     )!;
     expect(instructions.content).toContain("primary evidence");
     expect(instructions.content).toContain("only a navigation aid");
+  });
+
+  it("removes every configured synthetic sensitive source from every export artifact", () => {
+    const pack = buildChatGptExportPack(
+      SYNTHETIC_EXPORT_MESSAGES,
+      SYNTHETIC_EXPORT_MAPPINGS,
+    );
+    const protectedArtifacts = pack.files.filter((file) =>
+      ["chat_redacted.txt", "chat_redacted.jsonl", "analysis_index.json"].includes(
+        file.name,
+      ),
+    );
+
+    expect(pack.audit.highRisk).toHaveLength(0);
+
+    for (const file of protectedArtifacts) {
+      for (const rawValue of SYNTHETIC_EXPORT_RAW_VALUES) {
+        expect(
+          file.content,
+          `${file.name} leaked configured synthetic source value: ${rawValue}`,
+        ).not.toContain(rawValue);
+      }
+
+      for (const mapping of SYNTHETIC_EXPORT_MAPPINGS) {
+        expect(
+          file.content,
+          `${file.name} serialized source side of entity mapping: ${mapping.source}`,
+        ).not.toContain(mapping.source);
+      }
+    }
+
+    const allArtifacts = pack.files.map((file) => file.content).join("\n");
+    expect(allArtifacts).not.toContain("synthetic-raw-1");
+    expect(allArtifacts).not.toContain("synthetic-raw-2");
+
+    for (const mapping of SYNTHETIC_EXPORT_MAPPINGS) {
+      expect(allArtifacts).toContain(mapping.replacement);
+    }
+  });
+
+  it("fails loudly when the configured synthetic credential survives anonymization", () => {
+    const mappingsWithoutCredential = SYNTHETIC_EXPORT_MAPPINGS.filter(
+      (mapping) => mapping.source !== SYNTHETIC_EXPORT_SENSITIVE.secret,
+    );
+
+    try {
+      buildChatGptExportPack(SYNTHETIC_EXPORT_MESSAGES, mappingsWithoutCredential);
+      throw new Error("expected export to be blocked for surviving synthetic secret");
+    } catch (error) {
+      expect(error).toBeInstanceOf(ExportBlockedError);
+      const blocked = error as ExportBlockedError;
+      expect(
+        blocked.detections.some(
+          (detection) =>
+            detection.kind === "credential" &&
+            detection.value === SYNTHETIC_EXPORT_SENSITIVE.secret,
+        ),
+      ).toBe(true);
+    }
   });
 });
