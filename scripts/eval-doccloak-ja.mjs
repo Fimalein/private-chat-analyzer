@@ -36,7 +36,7 @@ const MODEL_CACHE_DIR = join(
   process.env.RUNNER_TEMP || join(ROOT, ".tmp"),
   "doccloak-ja-model-cache",
 );
-const THRESHOLDS = [0.25, 0.35, 0.5];
+const THRESHOLDS = [0.05, 0.1, 0.2, 0.35, 0.5];
 const TARGET_TYPES = new Set(["PERSON", "COMPANY", "ADDRESS"]);
 
 hfEnv.useBrowserCache = false;
@@ -148,6 +148,18 @@ function overlaps(a, b) {
 
 function metricRow(hits, total) {
   return { hits, total, ratio: total ? hits / total : null };
+}
+
+function countTypes(predictionsById) {
+  const byType = {};
+  let total = 0;
+  for (const predictions of predictionsById.values()) {
+    for (const prediction of predictions) {
+      total += 1;
+      byType[prediction.type] = (byType[prediction.type] || 0) + 1;
+    }
+  }
+  return { total, byType };
 }
 
 function evaluate(cases, predictionsById) {
@@ -308,6 +320,8 @@ for (const threshold of THRESHOLDS) {
 
   results.push({
     threshold,
+    mlRawSummary: countTypes(mlPredictions),
+    productRawSummary: countTypes(productPredictions),
     mlOnly: evaluate(cases, mlPredictions),
     productPipeline: evaluate(cases, productPredictions),
     observations: summarizeFindings(cases, productPredictions),
