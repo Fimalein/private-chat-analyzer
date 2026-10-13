@@ -5,7 +5,7 @@ on:
     branches: [main]
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   preview:
@@ -14,6 +14,8 @@ jobs:
     timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: security/audit-triage
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -30,10 +32,14 @@ jobs:
         run: npm test
       - name: Build
         run: npm run build
-      - name: Pack proposed manifests
-        run: tar -czf dependency-fix-preview.tgz package.json package-lock.json
-      - name: Upload proposed manifests
-        uses: actions/upload-artifact@v4
-        with:
-          name: dependency-fix-preview
-          path: dependency-fix-preview.tgz
+      - name: Commit verified manifest changes
+        run: |
+          if git diff --quiet -- package.json package-lock.json; then
+            echo "No manifest changes to commit."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          git commit -m "fix(security): update audited dependencies"
+          git push origin HEAD:security/audit-triage
