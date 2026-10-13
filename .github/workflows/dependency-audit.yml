@@ -1,0 +1,27 @@
+name: Dependency security audit
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    name: npm audit report
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Audit all dependencies (report dev-only findings)
+        run: |
+          npm audit --json > npm-audit.json || true
+          node -e 'const a=require("./npm-audit.json"); console.log(JSON.stringify({metadata:a.metadata?.vulnerabilities, packages:Object.entries(a.vulnerabilities||{}).map(([name,v])=>({name,severity:v.severity,isDirect:v.isDirect,range:v.range,fixAvailable:v.fixAvailable,via:v.via.map(x=>typeof x==="string"?x:{title:x.title,url:x.url,range:x.range})}))},null,2))'
+      - name: Audit production dependencies (release gate)
+        run: npm audit --omit=dev --audit-level=high
