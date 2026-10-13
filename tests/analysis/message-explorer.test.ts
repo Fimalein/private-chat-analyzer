@@ -50,6 +50,25 @@ describe("message explorer", () => {
     expect(result[0].replyGapMs).toBe(6 * 60 * 60 * 1000 + 25 * 60 * 1000);
   });
 
+  it("filters by derived analysis signal while keeping signals as navigation candidates", () => {
+    const synthetic = [
+      message("s1", "2026-10-04T09:00:00", "PERSON_A", "ごめん、言い過ぎた"),
+      message("s2", "2026-10-04T09:01:00", "PERSON_B", "別れたい。距離を置きたい"),
+      message("s3", "2026-10-04T09:02:00", "PERSON_A", "明日の予定を確認したい"),
+    ];
+    const prepared = prepareExplorerMessages(synthetic);
+    const result = filterAndSortExplorerMessages(prepared, {
+      ...DEFAULT_EXPLORER_FILTERS,
+      signal: "repair",
+    });
+
+    expect(result.map((item) => item.id)).toEqual(["s1"]);
+    expect(prepared.find((item) => item.id === "s2")?.analysisSignals).toEqual([
+      "distance_breakup",
+    ]);
+    expect(prepared.find((item) => item.id === "s3")?.analysisSignals).toEqual([]);
+  });
+
   it("sorts newest first", () => {
     const result = filterAndSortExplorerMessages(prepareExplorerMessages(raw), {
       ...DEFAULT_EXPLORER_FILTERS,
