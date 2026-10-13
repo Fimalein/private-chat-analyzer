@@ -46,3 +46,13 @@ next-env.d.ts
 # Next.js auto-generated agent stubs (`next dev` may recreate AGENTS.md)
 AGENTS.md
 CLAUDE.md
+
+# local/private chat working data (never commit)
+/raw-chat/
+/private-data/
+/local-imports/
+/local-exports/
+/scratch-chat/
+*.local-chat.txt
+*.local-chat.json
+*.local-chat.jsonl

@@ -7,7 +7,8 @@
     "build": "next build",
     "start": "next start",
     "lint": "eslint",
-    "test": "vitest run"
+    "test": "vitest run",
+    "privacy:guard": "node scripts/privacy-public-repo-guard.mjs"
   },
   "dependencies": {
     "html-to-image": "^1.11.13",

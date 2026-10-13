@@ -14,6 +14,8 @@ Turn your chats into stories you can explore.
 
 Currently supported: **LINE**, **Telegram**, plus **Meta** (Messenger, Instagram, and Threads). More platforms may come later.
 
+> **Public-repository privacy rule:** never commit real chat logs, identifiers, mappings, screenshots, or examples derived from real conversations. Tests and examples must be fabricated. See [the public repository privacy policy](docs/privacy/public-repository-policy.md) and [CONTRIBUTING.md](CONTRIBUTING.md).
+
 <div align="center">
   <img src="docs/preview.png" alt="ChatStory dashboard" />
 </div>
@@ -88,6 +90,9 @@ npm run dev
 Parser tests live in `tests/parse/`. After `npm install`:
 
 ```bash
+# Run the public-repository privacy guard
+npm run privacy:guard
+
 # Run all tests
 npm test
 
@@ -98,7 +103,7 @@ npx vitest run tests/parse/meta.test.ts
 
 ## Contributing
 
-Pull requests are welcome.
+Pull requests are welcome. Read [CONTRIBUTING.md](CONTRIBUTING.md) before adding fixtures, examples, screenshots, or privacy-related changes.
 
 <table>
   <thead>
