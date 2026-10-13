@@ -1,0 +1,97 @@
+{
+  "marker": "SYNTHETIC_FIXTURE",
+  "description": "Fabricated Japanese chat-like snippets for evaluating optional local entity detection. No sample is derived from a real conversation.",
+  "cases": [
+    {
+      "id": "ja-001",
+      "text": "空野しずくさんは朝凪電力株式会社で働いている。",
+      "expected": [
+        { "value": "空野しずく", "type": "PERSON" },
+        { "value": "朝凪電力株式会社", "type": "COMPANY" }
+      ]
+    },
+    {
+      "id": "ja-002",
+      "text": "待ち合わせは月影市の星見ヶ丘駅前で。",
+      "expected": [
+        { "value": "月影市", "type": "ADDRESS" }
+      ]
+    },
+    {
+      "id": "ja-003",
+      "text": "白波れんさんに連絡して、青凪区風見町2-4-6へ送って。",
+      "expected": [
+        { "value": "白波れん", "type": "PERSON" },
+        { "value": "青凪区風見町2-4-6", "type": "ADDRESS" }
+      ]
+    },
+    {
+      "id": "ja-004",
+      "text": "明日、夕凪テクノロジー株式会社の海野まひるさんと会議。",
+      "expected": [
+        { "value": "夕凪テクノロジー株式会社", "type": "COMPANY" },
+        { "value": "海野まひる", "type": "PERSON" }
+      ]
+    },
+    {
+      "id": "ja-005",
+      "text": "住所は星港県月影市光ヶ丘3丁目12番地です。",
+      "expected": [
+        { "value": "月影市", "type": "ADDRESS" },
+        { "value": "光ヶ丘3丁目12番地", "type": "ADDRESS" }
+      ]
+    },
+    {
+      "id": "ja-006",
+      "text": "今日は研究の実験が終わったらラーメンを食べる。",
+      "expected": []
+    },
+    {
+      "id": "ja-007",
+      "text": "朝凪電力株式会社と夕凪テクノロジー株式会社の共同研究が始まる。",
+      "expected": [
+        { "value": "朝凪電力株式会社", "type": "COMPANY" },
+        { "value": "夕凪テクノロジー株式会社", "type": "COMPANY" }
+      ]
+    },
+    {
+      "id": "ja-008",
+      "text": "空野しずくさんと白波れんさんが月影市に着いた。",
+      "expected": [
+        { "value": "空野しずく", "type": "PERSON" },
+        { "value": "白波れん", "type": "PERSON" },
+        { "value": "月影市", "type": "ADDRESS" }
+      ]
+    },
+    {
+      "id": "ja-009",
+      "text": "星見ヶ丘大学の研究室でゼミをする。",
+      "expected": [
+        { "value": "星見ヶ丘大学", "type": "OTHER" }
+      ],
+      "note": "Generic schools/organizations are not part of the built-in GLiNER label set; this case is intended to expose that limitation unless a custom label is configured."
+    },
+    {
+      "id": "ja-010",
+      "text": "海野まひるさんは星見ヶ丘大学から朝凪電力株式会社へ移った。",
+      "expected": [
+        { "value": "海野まひる", "type": "PERSON" },
+        { "value": "星見ヶ丘大学", "type": "OTHER" },
+        { "value": "朝凪電力株式会社", "type": "COMPANY" }
+      ]
+    },
+    {
+      "id": "ja-011",
+      "text": "月影市で朝凪電力株式会社の説明会があるらしい。",
+      "expected": [
+        { "value": "月影市", "type": "ADDRESS" },
+        { "value": "朝凪電力株式会社", "type": "COMPANY" }
+      ]
+    },
+    {
+      "id": "ja-012",
+      "text": "了解、またあとで連絡するね。",
+      "expected": []
+    }
+  ]
+}
