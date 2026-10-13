@@ -1,0 +1,39 @@
+name: Dependency fix preview
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    name: Preview dependency remediation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Install baseline
+        run: npm ci
+      - name: Upgrade aligned Next packages
+        run: npm install --save-exact next@16.4.0 eslint-config-next@16.4.0
+      - name: Apply non-breaking transitive audit fixes
+        run: npm audit fix
+      - name: Production audit
+        run: npm audit --omit=dev --audit-level=high
+      - name: Test
+        run: npm test
+      - name: Build
+        run: npm run build
+      - name: Pack proposed manifests
+        run: tar -czf dependency-fix-preview.tgz package.json package-lock.json
+      - name: Upload proposed manifests
+        uses: actions/upload-artifact@v4
+        with:
+          name: dependency-fix-preview
+          path: dependency-fix-preview.tgz
