@@ -17,7 +17,7 @@ A candidate must satisfy all of the following before integration work starts:
 - redistribution / model-license terms that are compatible with this project;
 - explicit opt-in status until synthetic accuracy and browser performance are measured.
 
-Transformers.js currently supports token classification / NER and includes DeBERTa-v2 token-classification model support, so ONNX-exported conventional token classifiers are architecturally plausible. Browser compatibility still depends on the exact tokenizer and model files.
+Transformers.js / ONNX Runtime Web make conventional token classifiers architecturally plausible, but browser compatibility depends on the exact tokenizer and exported graph rather than the model architecture alone.
 
 ## Candidate A: DataSign/gliner-ja-pii-v1
 
@@ -47,13 +47,13 @@ Strengths:
 - MIT.
 - Japanese NER fine-tune based on the Stockmark Wikipedia NER dataset.
 - Model card reports micro F1 around 0.81. Reported class F1 values include person names around 0.85, place names around 0.83, corporate names around 0.82, and other organization names around 0.74.
-- Uses `DebertaV2ForTokenClassification`; this architecture is supported by Transformers.js.
+- Uses `DebertaV2ForTokenClassification`; this architecture has a plausible ONNX browser path.
 
 Blocking concerns:
 
 - About 0.1B parameters before export / quantization, so still comparatively large for an opt-in browser feature.
 - The model card requires SentencePiece and Juman++. Browser compatibility therefore cannot be inferred from architecture support alone.
-- There is no existing Transformers.js-tagged browser-ready model repository for this exact Japanese fine-tune.
+- There is no existing browser-ready model repository for this exact Japanese fine-tune.
 
 Decision for this project: **interesting accuracy baseline, but tokenizer compatibility is a hard feasibility gate**. Do not spend time on full accuracy benchmarking until a browser-equivalent tokenizer path is demonstrated.
 
@@ -61,44 +61,56 @@ Decision for this project: **interesting accuracy baseline, but tokenizer compat
 
 Base model: https://huggingface.co/ku-nlp/deberta-v2-tiny-japanese-char-wwm
 
-This is currently the preferred engineering experiment rather than an already finished NER model.
+This is the selected engineering candidate.
 
 Why it is interesting:
 
-- 10.1M parameters; safetensors weights are about 40 MB before quantization.
-- Character-level Japanese tokenization. The model card states that raw text can be passed directly to the tokenizer and is tokenized at character level.
+- 10.1M parameters; upstream safetensors weights are about 40 MB before export / quantization.
+- Character-level Japanese tokenization.
 - Its tokenizer configuration uses `BertJapaneseTokenizer` with `word_tokenizer_type: basic` and `subword_tokenizer_type: character`, avoiding a native morphological analyzer at inference time.
-- DeBERTa-v2 token classification is supported by Transformers.js, so a fine-tuned ONNX model has a plausible browser path.
+- DeBERTa-v2 token classification exports successfully to standard ONNX in the current spike.
+
+The upstream repository does **not** ship `tokenizer.json`, so the production path should not assume that a generic browser tokenizer can load it directly. PR #43 instead tests a small browser-equivalent tokenizer: per-character NFKC normalization, `vocab.txt` lookup, and `[CLS]` / `[SEP]`. That path matched the upstream Python tokenizer on all 124 synthetic strings tested. Broader Unicode parity tests are still required.
+
+### Feasibility result from PR #43
+
+The synthetic-only spike fine-tuned Candidate C and successfully exported and dynamically quantized it:
+
+- float ONNX: about 22.27 MiB;
+- INT8 ONNX: about 7.03 MiB;
+- quantized ONNX matched PyTorch strict benchmark metrics exactly;
+- overall strict recall / precision: 90.0% / 87.1%;
+- overall overlap recall / precision: 100% / 96.8%;
+- PERSON strict recall / precision: 90.9% / 90.9%;
+- COMPANY strict recall: 100%;
+- ADDRESS strict recall / precision: 77.8% / 77.8%;
+- CI-runner quantized ONNX inference averaged about 1.26 ms per short synthetic message.
+
+These values are encouraging enough to continue, but they are **not production accuracy or browser-performance claims**. The benchmark is small and synthetic, and the remaining failures include incomplete person/address spans. In a privacy workflow, an overlapping but incomplete span can still leak identifying text, so exact-boundary quality is a hard gate.
 
 License / data caveat:
 
 - Base model: CC-BY-SA-4.0.
 - Stockmark `ner-wikipedia-dataset`: CC-BY-SA-3.0 and commercially usable, with share-alike obligations for modified / redistributed dataset material.
-- Before publishing derived weights, explicitly review whether the training-data and base-model share-alike terms impose distribution obligations on the model artifact or accompanying materials. Do not assume that a fine-tuned model can be redistributed under an arbitrary permissive license.
+- PR #43 intentionally uses synthetic-only training and does not distribute fine-tuned model weights.
+- Before publishing derived weights, explicitly review whether the base-model and future training-data share-alike terms impose distribution obligations on the model artifact or accompanying materials.
 
-## Recommended next spike
+## Decision
 
-Proceed with Candidate C first because it directly tests the main unresolved engineering question: can a small Japanese-first NER model be accurate enough while remaining practical in-browser?
+Candidate C **passes the first feasibility screen**. It is the current preferred route for a Japanese-first local NER helper, but it should remain research-only / opt-in until the next validation gate is complete.
 
-Suggested steps:
+Next steps:
 
-1. Build a synthetic-only training/evaluation set for `PERSON`, `ORG/COMPANY`, and `LOC/ADDRESS`, reusing the #39 evaluation schema.
-2. Fine-tune `ku-nlp/deberta-v2-tiny-japanese-char-wwm` for token classification in an isolated experiment; do not add training dependencies to the web app.
-3. Export the resulting token-classification model to ONNX and quantize it.
-4. Verify that `@huggingface/transformers` can load both tokenizer and model without custom native code.
-5. Run strict-span and overlap precision/recall on the synthetic corpus, including ordinary-chat negatives.
-6. Only if recall is materially useful, measure cold download/load, warm load, memory, and latency in desktop Chromium, then Android-class hardware.
-7. Keep the feature opt-in and preserve the existing deterministic privacy layers regardless of ML quality.
+1. Expand exact-boundary evaluation with a much larger adversarial synthetic corpus, especially suffixes, particles, numerals, punctuation, emoji, mixed scripts, compatibility characters, and ambiguous organization/location phrases.
+2. Evaluate and, if justified, fine-tune on an appropriately licensed Japanese NER dataset after license review; keep real private chats out of training and testing.
+3. Implement the NFKC + `vocab.txt` tokenizer in TypeScript and add parity fixtures for difficult Unicode cases.
+4. Load the quantized model with a browser ONNX runtime and measure cold download/load, warm load, memory, and per-message latency in desktop Chromium.
+5. Test Android-class hardware only after exact-boundary accuracy remains useful.
+6. Keep the deterministic structured scanner, Privacy Review, and final export rescan independent. ML must not become the sole privacy gate.
 
 ## Stop conditions
 
-Stop the candidate early if any of the following occurs:
-
-- browser tokenizer cannot reproduce training tokenization;
-- ONNX export requires unsupported custom operators;
-- quantized first-use payload is still unreasonably large for an optional privacy helper;
-- Japanese person-name recall remains poor enough that the feature does not materially reduce misses;
-- false positives make Privacy Review substantially noisier than the current workflow.
+Stop or redesign the candidate if the browser tokenizer cannot preserve parity, ONNX Web requires unsupported operators, exact person/address recall degrades substantially on broader data, false positives make Privacy Review noisy, or browser/mobile memory and load time are impractical.
 
 ## References
 
@@ -106,4 +118,3 @@ Stop the candidate early if any of the following occurs:
 - Japanese DeBERTa NER: https://huggingface.co/Mizuiro-sakura/deberta-v2-base-japanese-finetuned-ner
 - Tiny Japanese character DeBERTa: https://huggingface.co/ku-nlp/deberta-v2-tiny-japanese-char-wwm
 - Stockmark NER dataset: https://github.com/stockmarkteam/ner-wikipedia-dataset
-- Transformers.js token classification: https://huggingface.co/docs/transformers.js/pipelines

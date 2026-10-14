@@ -20,6 +20,9 @@
 # production
 /build
 
+# generated local benchmark output
+/benchmark-output/
+
 # misc
 .DS_Store
 *.pem
