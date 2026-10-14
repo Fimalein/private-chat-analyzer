@@ -7,6 +7,7 @@ on:
       - "scripts/spike-tiny-ja-ner.py"
       - "tests/fixtures/synthetic/doccloak-ja-benchmark.json"
       - "docs/privacy/japanese-local-ner-candidates.md"
+      - "docs/privacy/tiny-ja-ner-spike.md"
       - ".github/workflows/tiny-ja-ner-spike.yml"
 
 permissions:
@@ -24,7 +25,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
-          cache: pip
 
       - name: Install CPU benchmark dependencies
         run: |
