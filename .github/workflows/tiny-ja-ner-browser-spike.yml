@@ -1,0 +1,87 @@
+name: Tiny Japanese NER browser spike
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - "scripts/spike-tiny-ja-ner.py"
+      - "scripts/spike-tiny-ja-ner-browser.mjs"
+      - "scripts/spike-tiny-ja-ner-browser.html"
+      - "scripts/spike-tiny-ja-ner-browser-page.js"
+      - "tests/fixtures/synthetic/doccloak-ja-benchmark.json"
+      - "docs/privacy/tiny-ja-ner-browser-spike.md"
+      - ".github/workflows/tiny-ja-ner-browser-spike.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  chromium-runtime:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install CPU training/export dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
+          python -m pip install "transformers>=4.44,<5" "onnx>=1.16,<2" "onnxruntime>=1.18,<2" sentencepiece fugashi
+
+      - name: Train and export synthetic-only model
+        run: python scripts/spike-tiny-ja-ner.py
+
+      - name: Prepare browser tokenizer assets
+        run: |
+          python - <<'PY'
+          import json
+          from pathlib import Path
+          from transformers import AutoTokenizer
+
+          out = Path("benchmark-output/tiny-ja-ner")
+          tok = AutoTokenizer.from_pretrained("ku-nlp/deberta-v2-tiny-japanese-char-wwm", use_fast=False)
+          vocab_file = Path(tok.vocab_file)
+          (out / "vocab.txt").write_text(vocab_file.read_text(encoding="utf-8"), encoding="utf-8")
+          (out / "browser-config.json").write_text(
+              json.dumps(
+                  {
+                      "marker": "SYNTHETIC_FIXTURE",
+                      "labels": ["O", "B-PERSON", "I-PERSON", "B-ORG", "I-ORG", "B-LOC", "I-LOC"],
+                      "maxLength": 96,
+                  },
+                  ensure_ascii=False,
+                  indent=2,
+              ),
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Setup Node.js
+        uses: actions/setup-node@4
+        with:
+          node-version: 22
+
+      - name: Install browser-spike dependencies
+        run: npm install --no-save --package-lock=false onnxruntime-web@1.22.0 playwright@1.55.0
+
+      - name: Install Chromium
+        run: npx playwright install --with-deps chromium
+
+      - name: Run headless Chromium benchmark
+        run: node scripts/spike-tiny-ja-ner-browser.mjs
+
+      - name: Upload metrics only
+        uses: actions/upload-artifact@v4
+        with:
+          name: tiny-ja-ner-browser-results
+          path: |
+            benchmark-output/tiny-ja-ner/results.json
+            benchmark-output/tiny-ja-ner/browser-results.json
+          if-no-files-found: error
+          retention-days: 7
