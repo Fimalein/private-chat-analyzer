@@ -65,6 +65,37 @@ The browser workflow validates generator invariants using stdlib unit tests befo
 
 This is a **synthetic stress test**, not an independently sampled Japanese chat dataset. Training still uses a narrow synthetic distribution, so even high scores would not substantiate complete privacy.
 
+## Verified adversarial findings (2026-10-18)
+
+[Headless Chromium run](https://github.com/Fimalein/private-chat-analyzer/actions/runs/39100498946) completed successfully, including native-Python/Chromium parity on the complete adversarial summary. This is an **evaluation of the unmodified synthetic-only trained model**, not a privacy capability claim.
+
+| Synthetic test (15 x 32 = 480 cases) | Observed |
+| --- | ---: |
+| Labeled entities / model predictions | 664 / 779 |
+| Exact-span recall | **294/664 = 44.3%** |
+| Exact-span precision | **294/779 = 37.7%** |
+| Any-overlap recall | 571/664 = 86.0% |
+| Every labeled code point covered (full entity) | **342/664 = 51.5%** |
+| Labeled entity characters not covered | **1,599 / 4,596 = 34.8%** |
+| Address exact-span recall | **36/232 = 15.5%** |
+| Numbered address full coverage | **0/32** |
+| Building/room address full coverage | **0/32** |
+| `丁目` address full coverage | **1/32** |
+| Ordinary-word negative cases with false detections | **18/32 = 56.3%** |
+| Upstream tokenizer mismatches in adversarial corpus | **32/480** (all combining-mark group) |
+
+The intentionally out-of-window `truncation_tail` group explains **40** of the entity misses and **254** uncovered characters. Even *excluding this group*, exact-span recall is just **294/624 = 47.1%** and complete-coverage recall is **342/624 = 54.8%**. The difference between strong overlap recall and poor full coverage makes this model unsafe to rely on for anonymization.
+
+The CI used headless desktop Chromium on Linux/x64 with locally hosted benchmark assets. No Android or network-cold-load results were collected. The metrics artifact contains synthetic-only summaries; model weights and individual private chat samples were not uploaded.
+
+### Interpretation / next fixes
+
+1. **Fix span coverage first**, especially numeric street, `丁目`, and building/room suffixes; rule-assisted expansion must be conservatively tested against difficult negatives and must not silently count as safe anonymization.
+2. **Handle long messages** with overlapping chunk windows and original-code-point remapping; the current 96-token input maximum loses all tail entities by design.
+3. **Resolve upstream tokenizer incompatibility** for combining marks and inspect unnormalized/normalized character alignment. Native/Chromium parity merely confirms the two custom implementations match each other.
+4. **Evaluate false positives and distribution shift** on more varied fabricated negatives and an appropriately licensed independent Japanese NER benchmark.
+5. Keep ML as an **explicitly opt-in supplementary reviewer**, never a replacement for structured high-risk scanning or final export rescan.
+
 ## Decision gate
 
 Keep the PR in draft and the ML path unintegrated. Before any opt-in application use, require stronger exact-boundary/coverage performance, a plan for >94 content tokens (chunking or explicit detection failure), Unicode tokenizer remediation if parity breaks, difficult-negative review burden, browser offline/cache and Android-class tests, and a documented license/distribution decision. The structured scanner, Privacy Review and final export rescan must remain independent.
