@@ -77,10 +77,44 @@ try {
     throw new Error(`Browser page error: ${pageErrors[0]}`);
   }
 
+  // Compare browser predictions with the native Python ONNX INT8 run from this same CI job.
+  const reference = JSON.parse(readFileSync(resolve(OUTPUT_DIR, "results.json"), "utf8"));
+  if (reference.marker !== "SYNTHETIC_FIXTURE" || result.marker !== "SYNTHETIC_FIXTURE") {
+    throw new Error("Benchmark comparison requires synthetic-only results");
+  }
+  function equivalent(actual, expected) {
+    if (typeof actual === "number" && typeof expected === "number") {
+      return Math.abs(actual - expected) <= 1e-12;
+    }
+    if (Array.isArray(actual) || Array.isArray(expected)) {
+      return Array.isArray(actual) && Array.isArray(expected)
+        && actual.length === expected.length
+        && actual.every((value, index) => equivalent(value, expected[index]));
+    }
+    if (actual && expected && typeof actual === "object" && typeof expected === "object") {
+      const keys = Object.keys(expected);
+      return Object.keys(actual).length === keys.length
+        && keys.every((key) => Object.hasOwn(actual, key) && equivalent(actual[key], expected[key]));
+    }
+    return actual === expected;
+  }
+  const parity = {
+    cases: result.benchmark.cases === reference.benchmark.cases,
+    strict: equivalent(result.benchmark.strict, reference.benchmark.onnxInt8.strict),
+    overlap: equivalent(result.benchmark.overlap, reference.benchmark.onnxInt8.overlap),
+    byType: equivalent(result.benchmark.byType, reference.benchmark.onnxInt8.byType),
+    mismatches: equivalent(result.benchmark.mismatches, reference.benchmark.onnxMismatches),
+  };
+  result.benchmark.pythonOnnxParity = parity;
+
+  // Read package metadata directly: onnxruntime-web does not export ./package.json.
+  const dependencyVersion = (name) => JSON.parse(readFileSync(
+    resolve(OUTPUT_DIR, "browser-deps", "node_modules", name, "package.json"), "utf8",
+  )).version;
   result.environment = {
     chromium: browser.version(),
-    playwright: require("playwright/package.json").version,
-    onnxruntimeWeb: require("onnxruntime-web/package.json").version,
+    playwright: dependencyVersion("playwright"),
+    onnxruntimeWeb: dependencyVersion("onnxruntime-web"),
     platform: process.platform,
     arch: process.arch,
     node: process.version,
@@ -92,6 +126,9 @@ try {
   writeFileSync(output, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   console.log(JSON.stringify(result, null, 2));
   console.log(`Wrote ${output}`);
+  if (!Object.values(parity).every(Boolean)) {
+    throw new Error(`Browser/Python INT8 parity failed: ${JSON.stringify(parity)}`);
+  }
 } finally {
   if (browser) await browser.close();
   await new Promise((resolvePromise) => server.close(resolvePromise));
