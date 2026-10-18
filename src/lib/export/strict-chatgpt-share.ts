@@ -64,7 +64,7 @@ export function buildStrictChatGptSharePack(
   if (options?.confirmedHumanReview !== true) {
     throw new StrictShareBlockedError("manual_review_required");
   }
-  if (!options.dateMode || options.dateMode.mode === "exact") {
+  if (!options.dateMode || !["shift_weeks", "relative_day"].includes(options.dateMode.mode)) {
     throw new StrictShareBlockedError("relative_date_required");
   }
   if (!options.knownSensitiveValues?.some((value) => value.trim().length >= 2)) {
