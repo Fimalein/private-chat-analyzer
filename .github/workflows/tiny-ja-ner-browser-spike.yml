@@ -95,7 +95,8 @@ jobs:
       - name: Run headless Chromium benchmark
         run: node scripts/spike-tiny-ja-ner-browser.mjs
 
-      - name: Upload metrics only
+      - name: Upload metrics only (including failed parity runs)
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: tiny-ja-ner-browser-results
