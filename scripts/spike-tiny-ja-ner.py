@@ -30,6 +30,7 @@ from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
 from generate_tiny_ja_ner_adversarial import generate as adversarial_cases
+from generate_tiny_ja_address_holdout import generate as address_holdout_cases
 from repair_tiny_ja_address_spans import repair_address_spans
 from transformers import (
     AutoModelForTokenClassification,
@@ -453,6 +454,42 @@ def adversarial_evaluate(cases, predictions, transform=None):
     return overall
 
 
+def address_overextension(cases, before, after):
+    """Only newly added ADDRESS code points outside gold are overreach."""
+    added = 0
+    outside = 0
+    affected = []
+    for case, raw, repaired in zip(cases, before, after):
+        old_points = {pos for item in raw if item["type"] == "ADDRESS"
+                      for pos in range(item["start"], item["end"])}
+        new_points = {pos for item in repaired if item["type"] == "ADDRESS"
+                      for pos in range(item["start"], item["end"])}
+        gold_points = {pos for item in gold(case) if item["type"] == "ADDRESS"
+                       for pos in range(item["start"], item["end"])}
+        extra = new_points - old_points
+        wrong = extra - gold_points
+        added += len(extra)
+        outside += len(wrong)
+        if wrong:
+            affected.append(case["id"])
+    return {
+        "addedCharacters": added,
+        "overExtendedCharacters": outside,
+        "casesWithOverExtension": len(affected),
+        "sampleIds": affected[:12],
+    }
+
+
+def evaluate_address_holdout(cases, predictions):
+    expected = [gold(c) for c in cases]
+    repaired = [repair_address_spans(c["text"], p) for c, p in zip(cases, predictions)]
+    return {
+        "raw": adversarial_evaluate(cases, predictions),
+        "repaired": adversarial_evaluate(cases, repaired),
+        "overExtension": address_overextension(cases, predictions, repaired),
+    }
+
+
 def torch_predict(model, tok, text):
     ids, mask, source = tok.encode(text)
     started = time.perf_counter()
@@ -527,9 +564,14 @@ def main():
     cases = fixture["cases"]
     adversarial_fixture = adversarial_cases()
     adversarial_rows = adversarial_fixture["cases"]
+    holdout_fixture = address_holdout_cases()
+    holdout_rows = holdout_fixture["cases"]
     # A generated fixture is ignored by git and used only inside this run.
     (OUTPUT_DIR / "adversarial-cases.json").write_text(
         json.dumps(adversarial_fixture, ensure_ascii=False), encoding="utf-8",
+    )
+    (OUTPUT_DIR / "address-holdout.json").write_text(
+        json.dumps(holdout_fixture, ensure_ascii=False), encoding="utf-8",
     )
 
     parity_texts = [x.text for x in train_examples[:100]] + [x["text"] for x in cases]
@@ -571,6 +613,18 @@ def main():
     repaired_onnx = adversarial_evaluate(
         adversarial_rows, adversarial_predictions, transform=repair_address_spans
     )
+    holdout_predictions = [
+        ort_predict(session, tok, c["text"])[0] for c in holdout_rows
+    ]
+    holdout_results = {
+        "marker": "SYNTHETIC_FIXTURE",
+        "seed": holdout_fixture["seed"],
+        "cases": len(holdout_rows),
+        "oraclePrefix": evaluate_address_holdout(
+            holdout_rows, [c["seedCandidates"] for c in holdout_rows]
+        ),
+        "model": evaluate_address_holdout(holdout_rows, holdout_predictions),
+    }
 
     result = {
         "marker": "SYNTHETIC_FIXTURE",
@@ -597,6 +651,7 @@ def main():
         "benchmark": {"cases": len(cases), "torch": torch_metrics, "onnxInt8": onnx_metrics,
                       "onnxMatchesTorchStrict": onnx_metrics["strict"] == torch_metrics["strict"],
                       "torchMismatches": torch_misses, "onnxMismatches": onnx_misses},
+        "addressHoldout": holdout_results,
         "adversarial": {
             "marker": "SYNTHETIC_FIXTURE",
             "seed": adversarial_fixture["seed"],
