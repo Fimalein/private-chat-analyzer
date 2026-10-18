@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - "scripts/spike-tiny-ja-ner.py"
+      - "scripts/generate_tiny_ja_ner_adversarial.py"
+      - "tests/test_tiny_ja_ner_adversarial.py"
       - "scripts/spike-tiny-ja-ner-browser.mjs"
       - "scripts/spike-tiny-ja-ner-browser.html"
       - "scripts/spike-tiny-ja-ner-browser-page.js"
@@ -27,6 +29,9 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+
+      - name: Validate generated synthetic corpus
+        run: python -m unittest discover -s tests -p 'test_tiny_ja_ner_adversarial.py' -v
 
       - name: Install CPU training/export dependencies
         run: |
