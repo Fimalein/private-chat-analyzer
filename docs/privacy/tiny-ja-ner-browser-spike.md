@@ -96,6 +96,29 @@ The CI used headless desktop Chromium on Linux/x64 with locally hosted benchmark
 4. **Evaluate false positives and distribution shift** on more varied fabricated negatives and an appropriately licensed independent Japanese NER benchmark.
 5. Keep ML as an **explicitly opt-in supplementary reviewer**, never a replacement for structured high-risk scanning or final export rescan.
 
+## Experimental ADDRESS suffix repair (2026-10-18)
+
+This branch now includes an **optional comparison-only** address post-processor in `scripts/repair_tiny_ja_address_spans.py` and the corresponding browser helper `scripts/repair-tiny-ja-address-spans.js`. It operates exclusively on *existing* ADDRESS predictions and may extend an administrative-place span into a following address numeral, `丁目`, or building/room suffix. It never invents detections, never touches other entity types, never alters the base model's predictions in-place, and is **not integrated with Privacy Review or export**.
+
+The [verified headless Chromium benchmark run](https://github.com/Fimalein/private-chat-analyzer/actions/runs/39102361576) used the same original 480 entirely fabricated held-out cases for raw and repaired scoring, and matched Python ONNX metrics exactly. All 4 CI workflows passed for commit `c342121cb01a750f03f65cea1ef3a543dac9904e`.
+
+| Metric (synthetic only) | Raw NER | With ADDRESS suffix repair |
+| --- | ---: | ---: |
+| Overall exact-span recall | 294/664 = **44.3%** | 361/664 = **54.4%** |
+| Overall exact-span precision | 294/779 = 37.7% | 361/779 = 46.3% |
+| Fully covered labeled entities | 342/664 = **51.5%** | 459/664 = **69.1%** |
+| Uncovered labeled characters | **1,599** / 4,596 | **674** / 4,596 |
+| Numbered address full coverage | 0/32 | **32/32** |
+| `丁目` address full coverage | 1/32 | **30/32** |
+| Building/room address full coverage | 0/32 | **32/32** |
+| Mixed entities full coverage | 88/96 | **96/96** |
+| Entity-free negative messages with any prediction | 18/32 | 18/32 |
+| Explicit tail-truncation entities covered | 0/40 | 0/40 |
+
+The model itself has **not** improved: these are downstream candidate-span changes, not an increase in model recognition capability. Raw-model metrics are always retained. This synthetic suite contains construction patterns similar to the repair patterns, so these numbers do **not** establish effectiveness on independent Japanese addresses. Also, `fullCoverage` is an optimistic detection-side measure: it is not a real export redaction test. Residual failures (674 labeled characters plus other unsampled possibilities) rule out automated safe release.
+
+**Next gates:** independent unseen address forms and difficult negatives, no over-redaction of neighboring content, leading-particle and Unicode-safe alignment if wanted for exact spans, proper long-message windowing, and export rescanning. Maintain manual review and all existing structured-scanner checks.
+
 ## Decision gate
 
 Keep the PR in draft and the ML path unintegrated. Before any opt-in application use, require stronger exact-boundary/coverage performance, a plan for >94 content tokens (chunking or explicit detection failure), Unicode tokenizer remediation if parity breaks, difficult-negative review burden, browser offline/cache and Android-class tests, and a documented license/distribution decision. The structured scanner, Privacy Review and final export rescan must remain independent.
