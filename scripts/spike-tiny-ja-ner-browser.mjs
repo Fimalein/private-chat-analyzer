@@ -138,7 +138,36 @@ try {
   mkdirSync(OUTPUT_DIR, { recursive: true });
   const output = resolve(OUTPUT_DIR, "browser-results.json");
   writeFileSync(output, `${JSON.stringify(result, null, 2)}\n`, "utf8");
-  console.log(JSON.stringify(result, null, 2));
+  // Keep the job log readable even on failure; the full synthetic-only
+  // result, including per-category scores, is saved as an Actions artifact.
+  console.log(JSON.stringify({
+    marker: result.marker,
+    benchmark: {
+      cases: result.benchmark.cases,
+      strict: result.benchmark.strict,
+      pythonOnnxParity: result.benchmark.pythonOnnxParity,
+    },
+    adversarial: {
+      cases: result.adversarial.onnxInt8.cases,
+      strict: result.adversarial.onnxInt8.strict,
+      fullCoverage: result.adversarial.addressRepair.fullCoverage,
+      pythonOnnxParity: result.adversarial.pythonOnnxParity,
+    },
+    addressHoldout: {
+      cases: result.addressHoldout.cases,
+      oraclePrefix: {
+        raw: result.addressHoldout.oraclePrefix.raw.fullCoverage,
+        repaired: result.addressHoldout.oraclePrefix.repaired.fullCoverage,
+        overExtension: result.addressHoldout.oraclePrefix.overExtension,
+      },
+      model: {
+        raw: result.addressHoldout.model.raw.fullCoverage,
+        repaired: result.addressHoldout.model.repaired.fullCoverage,
+        overExtension: result.addressHoldout.model.overExtension,
+      },
+      pythonOnnxParity: result.addressHoldout.pythonOnnxParity,
+    },
+  }, null, 2));
   console.log(`Wrote ${output}`);
   if (!Object.values(parity).every(Boolean) ||
       !Object.values(adversarialParity).every(Boolean) ||
