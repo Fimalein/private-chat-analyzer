@@ -29,6 +29,7 @@ from onnxruntime.quantization import QuantType, quantize_dynamic
 from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
+from generate_tiny_ja_ner_adversarial import generate as adversarial_cases
 from transformers import (
     AutoModelForTokenClassification,
     AutoTokenizer,
@@ -330,12 +331,15 @@ def gold(case):
     result = []
     cursor = 0
     for item in case["gold"]:
-        start = text.find(item["value"], cursor)
-        if start < 0:
-            start = text.find(item["value"])
-        if start < 0:
-            raise RuntimeError(f"Synthetic gold not found in {case['id']}")
-        end = start + len(item["value"])
+        if "start" in item and "end" in item:
+            start, end = item["start"], item["end"]
+        else:
+            start = text.find(item["value"], cursor)
+            if start < 0:
+                start = text.find(item["value"])
+            end = start + len(item["value"])
+        if start < 0 or text[start:end] != item["value"]:
+            raise RuntimeError(f"Synthetic gold span invalid in {case['id']}")
         result.append({"start": start, "end": end, "type": item["type"], "value": item["value"]})
         cursor = end
     return result
@@ -391,6 +395,58 @@ def evaluate(cases, predictor):
                                "predicted": [{"value": x["value"], "type": x["type"]} for x in pred],
                                "gold": [{"value": x["value"], "type": x["type"]} for x in exp]})
     return metrics(predictions, expected), timings, mismatches
+
+
+def coverage(predictions, expected):
+    """Union of same-type prediction spans; uncovered code points are leak candidates."""
+    n = 0
+    covered = 0
+    total_chars = 0
+    uncovered_chars = 0
+    for preds, golds in zip(predictions, expected):
+        for g in golds:
+            n += 1
+            full = True
+            for pos in range(g["start"], g["end"]):
+                total_chars += 1
+                if not any(p["type"] == g["type"] and p["start"] <= pos < p["end"] for p in preds):
+                    uncovered_chars += 1
+                    full = False
+            covered += int(full)
+    return {"gold": n, "covered": covered, "recall": covered / n if n else None,
+            "totalCharacters": total_chars, "uncoveredCharacters": uncovered_chars}
+
+
+def adversarial_evaluate(cases, predictor):
+    predictions = [predictor(c["text"])[0] for c in cases]
+    expected = [gold(c) for c in cases]
+
+    def summary(subset):
+        pp = [predictions[i] for i in subset]
+        gg = [expected[i] for i in subset]
+        m = metrics(pp, gg)
+        return {
+            "cases": len(subset),
+            "strict": m["strict"],
+            "overlap": m["overlap"],
+            "byType": m["byType"],
+            "fullCoverage": coverage(pp, gg),
+            "negativeCasesWithPredictions": sum(1 for p, g in zip(pp, gg) if not g and p),
+        }
+
+    overall = summary(list(range(len(cases))))
+    overall["byGroup"] = {
+        group: summary([i for i, c in enumerate(cases) if c["group"] == group])
+        for group in sorted({c["group"] for c in cases})
+    }
+    mismatches = [
+        c["id"] for c, p, g in zip(cases, predictions, expected)
+        if {(x["start"], x["end"], x["type"]) for x in p}
+           != {(x["start"], x["end"], x["type"]) for x in g}
+    ]
+    overall["mismatchCount"] = len(mismatches)
+    overall["mismatchSampleIds"] = mismatches[:12]
+    return overall
 
 
 def torch_predict(model, tok, text):
@@ -465,6 +521,12 @@ def main():
     if fixture.get("marker") != "SYNTHETIC_FIXTURE":
         raise RuntimeError("Benchmark fixture must declare SYNTHETIC_FIXTURE")
     cases = fixture["cases"]
+    adversarial_fixture = adversarial_cases()
+    adversarial_rows = adversarial_fixture["cases"]
+    # A generated fixture is ignored by git and used only inside this run.
+    (OUTPUT_DIR / "adversarial-cases.json").write_text(
+        json.dumps(adversarial_fixture, ensure_ascii=False), encoding="utf-8",
+    )
 
     parity_texts = [x.text for x in train_examples[:100]] + [x["text"] for x in cases]
     parity_failures = []
@@ -489,6 +551,16 @@ def main():
     session = ort.InferenceSession(str(int8), providers=["CPUExecutionProvider"])
     session_load = time.perf_counter() - session_started
     onnx_metrics, onnx_times, onnx_misses = evaluate(cases, lambda text: ort_predict(session, tok, text))
+
+    # Record difficult upstream-tokenizer incompatibilities as findings rather
+    # than silently dropping stress cases from this evaluation.
+    parity_adversarial_failures = [
+        c["id"] for c in adversarial_rows
+        if not tok.parity(c["text"])[0]
+    ]
+    adversarial_onnx = adversarial_evaluate(
+        adversarial_rows, lambda text: ort_predict(session, tok, text)
+    )
 
     result = {
         "marker": "SYNTHETIC_FIXTURE",
@@ -515,6 +587,16 @@ def main():
         "benchmark": {"cases": len(cases), "torch": torch_metrics, "onnxInt8": onnx_metrics,
                       "onnxMatchesTorchStrict": onnx_metrics["strict"] == torch_metrics["strict"],
                       "torchMismatches": torch_misses, "onnxMismatches": onnx_misses},
+        "adversarial": {
+            "marker": "SYNTHETIC_FIXTURE",
+            "seed": adversarial_fixture["seed"],
+            "tokenizerParity": {
+                "checked": len(adversarial_rows),
+                "failureCount": len(parity_adversarial_failures),
+                "sampleIds": parity_adversarial_failures[:12],
+            },
+            "onnxInt8": adversarial_onnx,
+        },
     }
     path = OUTPUT_DIR / "results.json"
     path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
