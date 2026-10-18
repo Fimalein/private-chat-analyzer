@@ -533,14 +533,24 @@ def export_and_quantize(model, tok):
     return fp, int8, time.perf_counter() - started
 
 
-def ort_predict(session, tok, text):
+def ort_predict(session, tok, text, trace=None):
     ids, mask, source = tok.encode(text)
     started = time.perf_counter()
     logits = session.run(["logits"], {
         "input_ids": np.asarray([ids], dtype=np.int64),
         "attention_mask": np.asarray([mask], dtype=np.int64),
     })[0]
-    return decode(text, source, logits.argmax(-1)[0].tolist()), (time.perf_counter() - started) * 1000
+    elapsed = (time.perf_counter() - started) * 1000
+    if trace is not None:
+        scores = logits[0]
+        ranked = np.argsort(scores, axis=-1)
+        trace.append([
+            {"source": int(pos), "label": int(ranked[i, -1]),
+             "margin": round(float(scores[i, ranked[i, -1]] -
+                                   scores[i, ranked[i, -2]]), 6)}
+            for i, pos in enumerate(source) if pos >= 0
+        ])
+    return decode(text, source, logits.argmax(-1)[0].tolist()), elapsed
 
 
 def main():
@@ -602,7 +612,14 @@ def main():
     session_started = time.perf_counter()
     session = ort.InferenceSession(str(int8), providers=["CPUExecutionProvider"])
     session_load = time.perf_counter() - session_started
-    onnx_metrics, onnx_times, onnx_misses = evaluate(cases, lambda text: ort_predict(session, tok, text))
+    native_traces = {}
+    def traced_predictor(suite):
+        native_traces[suite] = []
+        return lambda text: ort_predict(session, tok, text, native_traces[suite])
+
+    onnx_metrics, onnx_times, onnx_misses = evaluate(
+        cases, traced_predictor("baseline")
+    )
 
     # Record difficult upstream-tokenizer incompatibilities as findings rather
     # than silently dropping stress cases from this evaluation.
@@ -612,15 +629,17 @@ def main():
     ]
     # Evaluate native ONNX inference only once per adversarial case: repair is
     # computed separately from those identical predictions, not a retraining.
+    adv_predict = traced_predictor("adversarial")
     adversarial_predictions = [
-        ort_predict(session, tok, c["text"])[0] for c in adversarial_rows
+        adv_predict(c["text"])[0] for c in adversarial_rows
     ]
     adversarial_onnx = adversarial_evaluate(adversarial_rows, adversarial_predictions)
     repaired_onnx = adversarial_evaluate(
         adversarial_rows, adversarial_predictions, transform=repair_address_spans
     )
+    holdout_predict = traced_predictor("addressHoldout")
     holdout_predictions = [
-        ort_predict(session, tok, c["text"])[0] for c in holdout_rows
+        holdout_predict(c["text"])[0] for c in holdout_rows
     ]
     holdout_results = {
         "marker": "SYNTHETIC_FIXTURE",
@@ -632,8 +651,9 @@ def main():
         "model": evaluate_address_holdout(holdout_rows, holdout_predictions),
     }
 
+    safety_predict = traced_predictor("addressSafetyHoldout")
     safety_predictions = [
-        ort_predict(session, tok, c["text"])[0] for c in safety_rows
+        safety_predict(c["text"])[0] for c in safety_rows
     ]
     safety_results = {
         "marker": "SYNTHETIC_FIXTURE",
@@ -644,6 +664,25 @@ def main():
         ),
         "model": evaluate_address_holdout(safety_rows, safety_predictions),
     }
+
+    # These are strictly synthetic local-workspace traces. No input text,
+    # vocabulary IDs, model weights, or actual conversations are saved.
+    (OUTPUT_DIR / "native-parity-traces.json").write_text(
+        json.dumps({
+            "marker": "SYNTHETIC_FIXTURE",
+            "suites": {
+                suite: [{"id": case["id"], "tokens": trace}
+                        for case, trace in zip(rows, native_traces[suite])]
+                for suite, rows in (
+                    ("baseline", cases),
+                    ("adversarial", adversarial_rows),
+                    ("addressHoldout", holdout_rows),
+                    ("addressSafetyHoldout", safety_rows),
+                )
+            },
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
     result = {
         "marker": "SYNTHETIC_FIXTURE",
