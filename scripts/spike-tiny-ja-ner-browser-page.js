@@ -363,13 +363,36 @@
         throw new Error(`Unexpected label dimension ${labelCount}`);
       }
       const pred = argmaxLabels(tensor.data, sequenceLength, labelCount);
-      return { entities: decode(text, encoded.source, pred, config.labels), ms: elapsed };
+      // Synthetic benchmark only: record label IDs and top-two margins,
+      // not original strings, token vocabulary IDs, or model weights.
+      const tokens = [];
+      for (let i = 1; i < encoded.source.length - 1; i += 1) {
+        const pos = encoded.source[i];
+        if (pos < 0) continue;
+        const offset = i * labelCount;
+        const top = pred[i];
+        let secondValue = -Infinity;
+        for (let label = 0; label < labelCount; label += 1) {
+          if (label !== top) secondValue = Math.max(secondValue, tensor.data[offset + label]);
+        }
+        tokens.push({
+          source: pos, label: top,
+          margin: Math.round((tensor.data[offset + top] - secondValue) * 1e6) / 1e6,
+        });
+      }
+      return {
+        entities: decode(text, encoded.source, pred, config.labels),
+        ms: elapsed, tokens,
+      };
     }
 
     const firstStarted = performance.now();
     await predict(fixture.cases[0].text);
     const firstInferenceMs = performance.now() - firstStarted;
 
+    const traces = {
+      baseline: [], adversarial: [], addressHoldout: [], addressSafetyHoldout: [],
+    };
     const predictions = [];
     const expected = [];
     const accuracyTimings = [];
@@ -378,6 +401,7 @@
       const result = await predict(caseItem.text);
       const wanted = gold(caseItem);
       predictions.push(result.entities);
+      traces.baseline.push({ id: caseItem.id, tokens: result.tokens });
       expected.push(wanted);
       accuracyTimings.push(result.ms);
       const predKey = result.entities.map((item) => `${item.start}:${item.end}:${item.type}`).sort().join("|");
@@ -401,7 +425,9 @@
     const advPred = [];
     const advGold = [];
     for (const item of adversarial.cases) {
-      advPred.push((await predict(item.text)).entities);
+      const result = await predict(item.text);
+      advPred.push(result.entities);
+      traces.adversarial.push({ id: item.id, tokens: result.tokens });
       advGold.push(gold(item));
     }
     const adversarialResult = adversarialSummary(adversarial.cases, advPred, advGold);
@@ -415,7 +441,9 @@
 
     const holdoutPredictions = [];
     for (const item of holdout.cases) {
-      holdoutPredictions.push((await predict(item.text)).entities);
+      const result = await predict(item.text);
+      holdoutPredictions.push(result.entities);
+      traces.addressHoldout.push({ id: item.id, tokens: result.tokens });
     }
     const holdoutResults = {
       marker: "SYNTHETIC_FIXTURE",
@@ -428,7 +456,9 @@
     };
     const safetyPredictions = [];
     for (const item of safety.cases) {
-      safetyPredictions.push((await predict(item.text)).entities);
+      const result = await predict(item.text);
+      safetyPredictions.push(result.entities);
+      traces.addressSafetyHoldout.push({ id: item.id, tokens: result.tokens });
     }
     const safetyResults = {
       marker: "SYNTHETIC_FIXTURE",
@@ -475,6 +505,7 @@
       },
       addressHoldout: holdoutResults,
       addressSafetyHoldout: safetyResults,
+      parityTraces: { marker: "SYNTHETIC_FIXTURE", suites: traces },
       adversarial: {
         marker: "SYNTHETIC_FIXTURE",
         seed: adversarial.seed,
