@@ -6,6 +6,10 @@ on:
     paths:
       - "scripts/spike-tiny-ja-ner.py"
       - "scripts/generate_tiny_ja_ner_adversarial.py"
+      - "scripts/repair_tiny_ja_address_spans.py"
+      - "scripts/repair-tiny-ja-address-spans.js"
+      - "tests/test_tiny_ja_address_repair.py"
+      - "tests/test_tiny_ja_address_repair.mjs"
       - "tests/test_tiny_ja_ner_adversarial.py"
       - "scripts/spike-tiny-ja-ner-browser.mjs"
       - "scripts/spike-tiny-ja-ner-browser.html"
@@ -31,7 +35,7 @@ jobs:
           python-version: "3.11"
 
       - name: Validate generated synthetic corpus
-        run: python -m unittest discover -s tests -p 'test_tiny_ja_ner_adversarial.py' -v
+        run: python -m unittest discover -s tests -p 'test_tiny_ja_*.py' -v
 
       - name: Install CPU training/export dependencies
         run: |
@@ -76,6 +80,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
+
+      - name: Validate JS address repair invariants
+        run: node tests/test_tiny_ja_address_repair.mjs
 
       - name: Install browser-spike dependencies
         run: npm install --prefix benchmark-output/tiny-ja-ner/browser-deps --no-save --package-lock=false --ignore-scripts onnxruntime-web@1.22.0 playwright@1.55.0
