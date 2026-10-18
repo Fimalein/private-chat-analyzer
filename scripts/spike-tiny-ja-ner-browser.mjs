@@ -4,13 +4,14 @@ import { dirname, extname, resolve, sep } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
 
-import { chromium } from "playwright";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 const OUTPUT_DIR = resolve(ROOT, "benchmark-output", "tiny-ja-ner");
 const HTML_PATH = "scripts/spike-tiny-ja-ner-browser.html";
-const require = createRequire(import.meta.url);
+// Resolve spike-only packages from the ignored, isolated benchmark directory.
+const require = createRequire(resolve(OUTPUT_DIR, "browser-deps", "package.json"));
+const { chromium } = require("playwright");
 
 const MIME = new Map([
   [".html", "text/html; charset=utf-8"],
