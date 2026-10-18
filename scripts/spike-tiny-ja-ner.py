@@ -543,11 +543,13 @@ def ort_predict(session, tok, text, trace=None):
     elapsed = (time.perf_counter() - started) * 1000
     if trace is not None:
         scores = logits[0]
-        ranked = np.argsort(scores, axis=-1)
+        top_labels = scores.argmax(axis=-1)
+        # Tie behavior must agree with the actual argmax used for decoding.
         trace.append([
-            {"source": int(pos), "label": int(ranked[i, -1]),
-             "margin": round(float(scores[i, ranked[i, -1]] -
-                                   scores[i, ranked[i, -2]]), 6)}
+            {"source": int(pos), "label": int(top_labels[i]),
+             "margin": round(float(scores[i, top_labels[i]] -
+                                   max(float(value) for label, value in enumerate(scores[i])
+                                       if label != top_labels[i])), 6)}
             for i, pos in enumerate(source) if pos >= 0
         ])
     return decode(text, source, logits.argmax(-1)[0].tolist()), elapsed
