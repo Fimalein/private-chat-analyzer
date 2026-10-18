@@ -145,6 +145,25 @@ A separate app CI job for this same revision failed at the pre-existing Next.js 
 
 **Decision: block release.** Do not tune on this frozen holdout and continue calling it unseen; subsequent fixes need a fresh third evaluation set. Prioritize (1) over-extension safety gates for duration/ordinal/quoted title contexts, (2) address segmentation with explicit confidence and safe fallback, (3) true independent data and native/browser mismatch diagnosis, then (4) long-message chunking and Unicode alignment. Keep the model, postprocessor, and export scanner independent until each gate is verified.
 
+## Numeric prose and quoted-work-title guards: regression results (2026-10-18)
+
+The experimental postprocessor now declines number extensions when immediately followed by a duration, counter, or ordinal (e.g. 3-5分 or 3番目). It also declines candidates inside explicitly indicated quoted work titles, including predictions that start at the opening quote or preceding text. Python and JavaScript regression tests cover these changes. No application Privacy Review or export behavior was changed.
+
+The third, separately generated 256-case / 16-group synthetic set has 208 labeled ADDRESS spans. Its **initial** run exposed 48 model-driven title over-extensions (200 new non-gold characters) despite zero oracle-prefix over-extensions. The guard was modified after examining that result. **This third suite is now a development regression set, NOT an untouched independent holdout.** Both the older 192-case suite and the original 480-case test are also already examined. The data is fictional and never used for model training.
+
+[Verified final Chromium CI run](https://github.com/Fimalein/private-chat-analyzer/actions/runs/39123393006) passed with Python/native ONNX vs Chromium parity on all four suites (24, 480, 192 and 256 cases); the app CI, Python-only NER and dependency audit passed too.
+
+| Detection-side result on synthetic cases | Raw model or oracle seed | Guarded repair |
+| --- | ---: | ---: |
+| Third suite: full-entity coverage of 208 labeled ADDRESS spans, oracle-prefix seeds | 112/208 (53.8%) | **208/208 (100%)** |
+| Third suite: full-entity coverage, actual Chromium NER | 112/208 (53.8%) | **208/208 (100%)** |
+| Third suite: added characters outside ADDRESS gold, actual Chromium NER | — | **0** (initial unguarded overlap case: 200) |
+| Previous 192-case suite: full-entity coverage of 168 addresses, oracle-prefix seeds | 24/168 (14.3%) | **24/168 (14.3%)** |
+| Previous 192-case suite: added characters outside ADDRESS gold | — | **0** (before guards: 144) |
+| Original 480 stress cases: full-entity coverage across all classes | 342/664 (51.5%) | **459/664 (69.1%)** |
+
+**Privacy decision remains BLOCKED:** the third set was used to fix a guard and cannot support an independent generalization claim. The previous more varied 192-case suite remains weak at full-address coverage, and the first 480-case suite still has 674 uncovered labeled characters after repair. Very long inputs, nonstandard Japanese Unicode, harder ordinary-text negatives, mobile memory, model redistribution and **end-to-end actual export leak testing** are separate gates. A perfect development regression score never establishes production anonymization safety.
+
 ## Decision gate
 
 Keep the PR in draft and the ML path unintegrated. Before any opt-in application use, require stronger exact-boundary/coverage performance, a plan for >94 content tokens (chunking or explicit detection failure), Unicode tokenizer remediation if parity breaks, difficult-negative review burden, browser offline/cache and Android-class tests, and a documented license/distribution decision. The structured scanner, Privacy Review and final export rescan must remain independent.
