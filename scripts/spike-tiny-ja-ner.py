@@ -418,8 +418,9 @@ def coverage(predictions, expected):
             "totalCharacters": total_chars, "uncoveredCharacters": uncovered_chars}
 
 
-def adversarial_evaluate(cases, predictor, transform=None):
-    predictions = [predictor(c["text"])[0] for c in cases]
+def adversarial_evaluate(cases, predictions, transform=None):
+    if len(cases) != len(predictions):
+        raise ValueError("Adversarial predictions must match case count")
     if transform is not None:
         predictions = [transform(c["text"], p) for c, p in zip(cases, predictions)]
     expected = [gold(c) for c in cases]
@@ -566,14 +567,8 @@ def main():
     adversarial_predictions = [
         ort_predict(session, tok, c["text"])[0] for c in adversarial_rows
     ]
-    def from_prepared(cases, prepared, transform=None):
-        iterator = iter(prepared)
-        return adversarial_evaluate(
-            cases, lambda _: (next(iterator), 0), transform=transform
-        )
-
-    adversarial_onnx = from_prepared(adversarial_rows, adversarial_predictions)
-    repaired_onnx = from_prepared(
+    adversarial_onnx = adversarial_evaluate(adversarial_rows, adversarial_predictions)
+    repaired_onnx = adversarial_evaluate(
         adversarial_rows, adversarial_predictions, transform=repair_address_spans
     )
 
