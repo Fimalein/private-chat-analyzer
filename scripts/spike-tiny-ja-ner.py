@@ -30,6 +30,7 @@ from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
 from generate_tiny_ja_ner_adversarial import generate as adversarial_cases
+from repair_tiny_ja_address_spans import repair_address_spans
 from transformers import (
     AutoModelForTokenClassification,
     AutoTokenizer,
@@ -417,8 +418,10 @@ def coverage(predictions, expected):
             "totalCharacters": total_chars, "uncoveredCharacters": uncovered_chars}
 
 
-def adversarial_evaluate(cases, predictor):
+def adversarial_evaluate(cases, predictor, transform=None):
     predictions = [predictor(c["text"])[0] for c in cases]
+    if transform is not None:
+        predictions = [transform(c["text"], p) for c, p in zip(cases, predictions)]
     expected = [gold(c) for c in cases]
 
     def summary(subset):
@@ -558,8 +561,20 @@ def main():
         c["id"] for c in adversarial_rows
         if not tok.parity(c["text"])[0]
     ]
-    adversarial_onnx = adversarial_evaluate(
-        adversarial_rows, lambda text: ort_predict(session, tok, text)
+    # Evaluate native ONNX inference only once per adversarial case: repair is
+    # computed separately from those identical predictions, not a retraining.
+    adversarial_predictions = [
+        ort_predict(session, tok, c["text"])[0] for c in adversarial_rows
+    ]
+    def from_prepared(cases, prepared, transform=None):
+        iterator = iter(prepared)
+        return adversarial_evaluate(
+            cases, lambda _: (next(iterator), 0), transform=transform
+        )
+
+    adversarial_onnx = from_prepared(adversarial_rows, adversarial_predictions)
+    repaired_onnx = from_prepared(
+        adversarial_rows, adversarial_predictions, transform=repair_address_spans
     )
 
     result = {
@@ -596,6 +611,7 @@ def main():
                 "sampleIds": parity_adversarial_failures[:12],
             },
             "onnxInt8": adversarial_onnx,
+            "addressRepair": repaired_onnx,
         },
     }
     path = OUTPUT_DIR / "results.json"
