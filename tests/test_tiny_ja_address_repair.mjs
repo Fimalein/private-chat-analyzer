@@ -63,4 +63,18 @@ for (const text of [
 check("住所を「風凪市琥珀町三丁目」と記した。",
   "風凪市琥珀町", "風凪市琥珀町三丁目");
 
+for (const [text, prediction] of [
+  ["短編『風凪市琥珀町3-5』を読んだ。", "『風凪市琥珀町"],
+  ["映画『風凪市琥珀町 星雲ビル』を見た。", "映画『風凪市琥珀町"],
+]) {
+  const chars = Array.from(text);
+  const candidateChars = Array.from(prediction);
+  const start = chars.findIndex((_, index) =>
+    chars.slice(index, index + candidateChars.length).join("") === prediction);
+  assert.ok(start >= 0);
+  const seed = [{ start, end: start + candidateChars.length,
+    type: "ADDRESS", value: prediction }];
+  assert.equal(JSON.stringify(repair(text, seed)), JSON.stringify(seed), text);
+}
+
 console.log("Address repair JS regressions PASS");
