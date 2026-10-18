@@ -6,6 +6,8 @@ on:
     paths:
       - "scripts/spike-tiny-ja-ner.py"
       - "scripts/generate_tiny_ja_ner_adversarial.py"
+      - "scripts/generate_tiny_ja_address_holdout.py"
+      - "tests/test_tiny_ja_address_holdout.py"
       - "scripts/repair_tiny_ja_address_spans.py"
       - "scripts/repair-tiny-ja-address-spans.js"
       - "tests/test_tiny_ja_address_repair.py"
