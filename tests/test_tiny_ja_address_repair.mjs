@@ -13,7 +13,9 @@ assert.equal(typeof repair, "function");
 
 function check(text, predicted, expected) {
   const points = Array.from(text);
-  const start = points.join("").indexOf(predicted);
+  const length = Array.from(predicted).length;
+  const start = points.findIndex((_, index) =>
+    points.slice(index, index + length).join("") === predicted);
   assert.ok(start >= 0);
   const span = { start, end: start + Array.from(predicted).length, type: "ADDRESS", value: predicted };
   const before = JSON.stringify(span);
