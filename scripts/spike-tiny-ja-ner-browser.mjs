@@ -113,6 +113,13 @@ try {
     addressRepair: equivalent(result.adversarial.addressRepair, reference.adversarial.addressRepair),
   };
   result.adversarial.pythonOnnxParity = adversarialParity;
+  const holdoutParity = {
+    seed: result.addressHoldout.seed === reference.addressHoldout.seed,
+    cases: result.addressHoldout.cases === reference.addressHoldout.cases,
+    oraclePrefix: equivalent(result.addressHoldout.oraclePrefix, reference.addressHoldout.oraclePrefix),
+    model: equivalent(result.addressHoldout.model, reference.addressHoldout.model),
+  };
+  result.addressHoldout.pythonOnnxParity = holdoutParity;
 
   // Read package metadata directly: onnxruntime-web does not export ./package.json.
   const dependencyVersion = (name) => JSON.parse(readFileSync(
@@ -134,8 +141,9 @@ try {
   console.log(JSON.stringify(result, null, 2));
   console.log(`Wrote ${output}`);
   if (!Object.values(parity).every(Boolean) ||
-      !Object.values(adversarialParity).every(Boolean)) {
-    throw new Error(`Browser/Python INT8 parity failed: ${JSON.stringify({ parity, adversarialParity })}`);
+      !Object.values(adversarialParity).every(Boolean) ||
+      !Object.values(holdoutParity).every(Boolean)) {
+    throw new Error(`Browser/Python INT8 parity failed: ${JSON.stringify({ parity, adversarialParity, holdoutParity })}`);
   }
 } finally {
   if (browser) await browser.close();
