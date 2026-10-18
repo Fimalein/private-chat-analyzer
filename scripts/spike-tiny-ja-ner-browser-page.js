@@ -224,7 +224,7 @@
   }
 
   window.runTinyJaNerBenchmark = async function runTinyJaNerBenchmark() {
-    ort.env.wasm.wasmPaths = "/node_modules/onnxruntime-web/dist/";
+    ort.env.wasm.wasmPaths = "/benchmark-output/tiny-ja-ner/browser-deps/node_modules/onnxruntime-web/dist/";
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.proxy = false;
 
