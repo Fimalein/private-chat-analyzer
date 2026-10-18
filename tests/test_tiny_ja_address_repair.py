@@ -92,6 +92,20 @@ class AddressBoundaryRepairTests(unittest.TestCase):
                 candidate = entity(text, "風凪市琥珀町")
                 self.assertEqual(repair_address_spans(text, [candidate]), [candidate])
 
+    def test_ner_span_including_opening_quote_must_not_extend(self):
+        text = "短編『風凪市琥珀町3-5』を読んだ。"
+        quoted_candidate = entity(text, "『風凪市琥珀町")
+        self.assertEqual(
+            repair_address_spans(text, [quoted_candidate]),
+            [quoted_candidate],
+        )
+        text2 = "映画『風凪市琥珀町 星雲ビル』を見た。"
+        quoted_candidate2 = entity(text2, "映画『風凪市琥珀町")
+        self.assertEqual(
+            repair_address_spans(text2, [quoted_candidate2]),
+            [quoted_candidate2],
+        )
+
     def test_legitimate_quoted_address_still_extends(self):
         self.check_repair(
             "住所を「風凪市琥珀町三丁目」と記した。",
