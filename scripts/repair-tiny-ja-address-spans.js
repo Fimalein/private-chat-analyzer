@@ -10,6 +10,28 @@
   const TAIL_NUMBER = /^[-－‐‑−][0-9０-９]+/u;
   const CHOME_END = /[0-9０-９一二三四五六七八九十百千]$/u;
 
+  const PROSE_NUMBER_END = /^(?:分|秒|時間|日|週間?|年|回|個|件|人|枚|本|ページ|目|番目|km|ｋｍ|m|ｍ|㎞|メートル)/u;
+  const TITLE_HINTS = ["映画", "短編", "小説", "漫画", "模型", "作品", "題名", "タイトル"];
+
+  function inQuotedWorkTitle(chars, start) {
+    const prefix = chars.slice(0, start).join("");
+    for (const [opening, closing] of [["『", "』"], ["「", "」"]]) {
+      const left = prefix.lastIndexOf(opening);
+      if (left > prefix.lastIndexOf(closing)) {
+        const context = Array.from(prefix.slice(0, left)).slice(-16).join("");
+        if (TITLE_HINTS.some((hint) => context.includes(hint))) return true;
+      }
+    }
+    return false;
+  }
+
+  function safeNumericExtension(rest, candidate) {
+    if (candidate && PROSE_NUMBER_END.test(Array.from(rest).slice(Array.from(candidate).length).join(""))) {
+      return "";
+    }
+    return candidate;
+  }
+
   function repairAddressSpans(text, spans) {
     const chars = Array.from(text);
     return spans.map((item) => {
@@ -19,16 +41,17 @@
         return span;
       }
       const original = chars.slice(start, end).join("");
+      if (inQuotedWorkTitle(chars, start)) return span;
       if (!ADMIN_NEAR.test(original)) return span;
 
       const rest = chars.slice(end).join("");
       let extension = "";
       if (ADMIN_END.test(original)) {
-        extension = rest.match(NUMBERED)?.[0] ?? "";
+        extension = safeNumericExtension(rest, rest.match(NUMBERED)?.[0] ?? "");
       } else if (CHOME_END.test(original) && rest.startsWith("丁目")) {
         extension = "丁目";
       } else if (/[0-9０-９]$/u.test(original)) {
-        extension = rest.match(TAIL_NUMBER)?.[0] ?? "";
+        extension = safeNumericExtension(rest, rest.match(TAIL_NUMBER)?.[0] ?? "");
       }
       const next = Array.from(rest).slice(Array.from(extension).length).join("");
       if (ADMIN_END.test(original) || extension) {
