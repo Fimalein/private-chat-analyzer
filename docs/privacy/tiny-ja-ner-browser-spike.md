@@ -25,7 +25,8 @@ The workflow:
 5. loads `onnxruntime-web` using the WASM execution provider;
 6. applies the browser tokenizer strategy: Unicode NFKC per input code point, then `vocab.txt` lookup plus `[CLS]`/`[SEP]`;
 7. evaluates the existing 24-case synthetic held-out corpus in the browser;
-8. records local session-load time, first inference, repeated warm latency, strict/overlap metrics, and Chromium JS-heap observations.
+8. records local session-load time, first inference, repeated warm latency, strict/overlap metrics, and Chromium JS-heap observations;
+9. asserts Chromium strict/overlap/by-type metrics and per-case mismatch details match the same run's native Python ONNX INT8 results, failing CI on disagreement.
 
 The browser page and server are local to the GitHub Actions runner. Therefore the measured session-load value is **not** a first-use internet download benchmark. It measures browser/WASM/model initialization using a local HTTP asset. Likewise `performance.memory` only reports Chromium JS heap and is not a complete process or WebAssembly-memory measurement.
 
@@ -41,7 +42,7 @@ These are spike-only dependencies and are not added to the application package m
 
 ## Quantization compatibility finding
 
-The initial all-operator dynamic INT8 export loaded in native Python ONNX Runtime but failed inside Chromium WASM because the DeBERTa convolution was converted to a `ConvInteger` node that the pinned browser runtime could not execute. This is a runtime compatibility failure, not an accuracy result. The follow-up export quantizes only `MatMul`/`Gemm`, leaving convolution in FP32, and asserts that no `ConvInteger` nodes remain. The resulting model size and browser metrics must be measured again; the original ~7 MiB figure does not automatically apply to this revised graph.
+The initial all-operator dynamic INT8 export loaded in native Python ONNX Runtime but failed inside Chromium WASM because the DeBERTa convolution was converted to a `ConvInteger` node that the pinned browser runtime could not execute. After limiting quantization to matrix operations, Chromium completed the inference stage, but the first run still failed when the Node runner tried to import a package-private `onnxruntime-web/package.json` export; the runner now reads dependency version metadata from the isolated installed file path instead. This is a runtime compatibility failure, not an accuracy result. The follow-up export quantizes only `MatMul`/`Gemm`, leaving convolution in FP32, and asserts that no `ConvInteger` nodes remain. The resulting model size and browser metrics must be measured again; the original ~7 MiB figure does not automatically apply to this revised graph.
 
 ## Decision gate
 
