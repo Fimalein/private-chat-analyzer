@@ -3,6 +3,7 @@ import { mkdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, extname, resolve, sep } from "node:path";
 import { createRequire } from "node:module";
 import { fileURLToPath } from "node:url";
+import { compareSyntheticParity } from "./compare-tiny-ja-ner-parity.mjs";
 
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -128,6 +129,24 @@ try {
   };
   result.addressSafetyHoldout.pythonOnnxParity = safetyParity;
 
+  // Full synthetic-only per-token traces are not uploaded. Keep only bounded
+  // disagreement details (case ID, source code-point offset, predicted label
+  // ID and top-two margin), and never serialize chat or token vocabulary IDs.
+  const nativeTraces = JSON.parse(readFileSync(resolve(OUTPUT_DIR, "native-parity-traces.json"), "utf8"));
+  const parityDiagnostics = compareSyntheticParity(nativeTraces, result.parityTraces);
+  const diagnosticOutput = resolve(OUTPUT_DIR, "parity-diagnostics.json");
+  writeFileSync(diagnosticOutput, JSON.stringify(parityDiagnostics, null, 2) + "\n", "utf8");
+  delete result.parityTraces;
+  result.parityDiagnosticsSummary = Object.fromEntries(
+    Object.entries(parityDiagnostics.suites).map(([suite, stats]) =>
+      [suite, { cases: stats.cases, differingCases: stats.differingCases,
+        labelDisagreements: stats.labelDisagreements,
+        sourcePositionMismatches: stats.sourcePositionMismatches,
+        smallMarginDisagreements: stats.smallMarginDisagreements,
+        disagreementsWithLargeMargins: stats.disagreementsWithLargeMargins }],
+    ),
+  );
+
   // Read package metadata directly: onnxruntime-web does not export ./package.json.
   const dependencyVersion = (name) => JSON.parse(readFileSync(
     resolve(OUTPUT_DIR, "browser-deps", "node_modules", name, "package.json"), "utf8",
@@ -174,6 +193,7 @@ try {
       },
       pythonOnnxParity: result.addressHoldout.pythonOnnxParity,
     },
+    parityDiagnosticsSummary: result.parityDiagnosticsSummary,
     addressSafetyHoldout: {
       cases: result.addressSafetyHoldout.cases,
       oraclePrefix: {
@@ -193,7 +213,9 @@ try {
   if (!Object.values(parity).every(Boolean) ||
       !Object.values(adversarialParity).every(Boolean) ||
       !Object.values(holdoutParity).every(Boolean) ||
-      !Object.values(safetyParity).every(Boolean)) {
+      !Object.values(safetyParity).every(Boolean) ||
+      parityDiagnostics.totalLabelDisagreements > 0 ||
+      parityDiagnostics.totalSourceMismatches > 0) {
     throw new Error(`Browser/Python INT8 parity failed: ${JSON.stringify({ parity, adversarialParity, holdoutParity, safetyParity })}`);
   }
 } finally {
