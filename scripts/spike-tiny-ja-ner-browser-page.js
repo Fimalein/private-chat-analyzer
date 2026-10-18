@@ -366,6 +366,13 @@
       advGold.push(gold(item));
     }
     const adversarialResult = adversarialSummary(adversarial.cases, advPred, advGold);
+    if (typeof window.repairTinyJaAddressSpans !== "function") {
+      throw new Error("Address repair helper must be loaded");
+    }
+    const repairedPred = adversarial.cases.map((item, index) =>
+      window.repairTinyJaAddressSpans(item.text, advPred[index]),
+    );
+    const repairedResult = adversarialSummary(adversarial.cases, repairedPred, advGold);
     const heapAfterInference = performance.memory?.usedJSHeapSize ?? null;
     const benchmark = metrics(predictions, expected);
     await session.release();
@@ -404,6 +411,7 @@
         marker: "SYNTHETIC_FIXTURE",
         seed: adversarial.seed,
         onnxInt8: adversarialResult,
+        addressRepair: repairedResult,
       },
     };
   };
