@@ -106,6 +106,12 @@ try {
     mismatches: equivalent(result.benchmark.mismatches, reference.benchmark.onnxMismatches),
   };
   result.benchmark.pythonOnnxParity = parity;
+  const adversarialParity = {
+    seed: result.adversarial.seed === reference.adversarial.seed,
+    cases: result.adversarial.onnxInt8.cases === reference.adversarial.onnxInt8.cases,
+    summary: equivalent(result.adversarial.onnxInt8, reference.adversarial.onnxInt8),
+  };
+  result.adversarial.pythonOnnxParity = adversarialParity;
 
   // Read package metadata directly: onnxruntime-web does not export ./package.json.
   const dependencyVersion = (name) => JSON.parse(readFileSync(
@@ -126,8 +132,9 @@ try {
   writeFileSync(output, `${JSON.stringify(result, null, 2)}\n`, "utf8");
   console.log(JSON.stringify(result, null, 2));
   console.log(`Wrote ${output}`);
-  if (!Object.values(parity).every(Boolean)) {
-    throw new Error(`Browser/Python INT8 parity failed: ${JSON.stringify(parity)}`);
+  if (!Object.values(parity).every(Boolean) ||
+      !Object.values(adversarialParity).every(Boolean)) {
+    throw new Error(`Browser/Python INT8 parity failed: ${JSON.stringify({ parity, adversarialParity })}`);
   }
 } finally {
   if (browser) await browser.close();
