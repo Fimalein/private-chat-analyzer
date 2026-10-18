@@ -5,6 +5,8 @@ on:
   pull_request:
     paths:
       - "scripts/spike-tiny-ja-ner.py"
+      - "scripts/compare-tiny-ja-ner-parity.mjs"
+      - "tests/test_tiny_ja_ner_parity.mjs"
       - "scripts/generate_tiny_ja_ner_adversarial.py"
       - "scripts/generate_tiny_ja_address_holdout.py"
       - "scripts/generate_tiny_ja_address_safety_holdout.py"
@@ -85,8 +87,10 @@ jobs:
         with:
           node-version: 22
 
-      - name: Validate JS address repair invariants
-        run: node tests/test_tiny_ja_address_repair.mjs
+      - name: Validate JS address repair and parity diagnostics
+        run: |
+          node tests/test_tiny_ja_address_repair.mjs
+          node tests/test_tiny_ja_ner_parity.mjs
 
       - name: Install browser-spike dependencies
         run: npm install --prefix benchmark-output/tiny-ja-ner/browser-deps --no-save --package-lock=false --ignore-scripts onnxruntime-web@1.22.0 playwright@1.55.0
@@ -105,5 +109,6 @@ jobs:
           path: |
             benchmark-output/tiny-ja-ner/results.json
             benchmark-output/tiny-ja-ner/browser-results.json
+            benchmark-output/tiny-ja-ner/parity-diagnostics.json
           if-no-files-found: error
           retention-days: 7
