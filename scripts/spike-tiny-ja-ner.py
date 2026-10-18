@@ -31,6 +31,7 @@ from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
 from generate_tiny_ja_ner_adversarial import generate as adversarial_cases
 from generate_tiny_ja_address_holdout import generate as address_holdout_cases
+from generate_tiny_ja_address_safety_holdout import generate as address_safety_cases
 from repair_tiny_ja_address_spans import repair_address_spans
 from transformers import (
     AutoModelForTokenClassification,
@@ -566,12 +567,17 @@ def main():
     adversarial_rows = adversarial_fixture["cases"]
     holdout_fixture = address_holdout_cases()
     holdout_rows = holdout_fixture["cases"]
+    safety_fixture = address_safety_cases()
+    safety_rows = safety_fixture["cases"]
     # A generated fixture is ignored by git and used only inside this run.
     (OUTPUT_DIR / "adversarial-cases.json").write_text(
         json.dumps(adversarial_fixture, ensure_ascii=False), encoding="utf-8",
     )
     (OUTPUT_DIR / "address-holdout.json").write_text(
         json.dumps(holdout_fixture, ensure_ascii=False), encoding="utf-8",
+    )
+    (OUTPUT_DIR / "address-safety-holdout.json").write_text(
+        json.dumps(safety_fixture, ensure_ascii=False), encoding="utf-8",
     )
 
     parity_texts = [x.text for x in train_examples[:100]] + [x["text"] for x in cases]
@@ -626,6 +632,19 @@ def main():
         "model": evaluate_address_holdout(holdout_rows, holdout_predictions),
     }
 
+    safety_predictions = [
+        ort_predict(session, tok, c["text"])[0] for c in safety_rows
+    ]
+    safety_results = {
+        "marker": "SYNTHETIC_FIXTURE",
+        "seed": safety_fixture["seed"],
+        "cases": len(safety_rows),
+        "oraclePrefix": evaluate_address_holdout(
+            safety_rows, [c["seedCandidates"] for c in safety_rows]
+        ),
+        "model": evaluate_address_holdout(safety_rows, safety_predictions),
+    }
+
     result = {
         "marker": "SYNTHETIC_FIXTURE",
         "generatedAt": datetime.now(timezone.utc).isoformat(),
@@ -652,6 +671,7 @@ def main():
                       "onnxMatchesTorchStrict": onnx_metrics["strict"] == torch_metrics["strict"],
                       "torchMismatches": torch_misses, "onnxMismatches": onnx_misses},
         "addressHoldout": holdout_results,
+        "addressSafetyHoldout": safety_results,
         "adversarial": {
             "marker": "SYNTHETIC_FIXTURE",
             "seed": adversarial_fixture["seed"],
