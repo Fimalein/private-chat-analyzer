@@ -41,4 +41,26 @@ assert.equal(JSON.stringify(repair(text, unmodified)), JSON.stringify(unmodified
 assert.equal(repair(text, []).length, 0);
 const org = [{ start: 0, end: 3, type: "COMPANY", value: "月凪市" }];
 assert.equal(JSON.stringify(repair(text, org)), JSON.stringify(org));
+
+for (const text of [
+  "風凪市琥珀町3-5分以内に完了。",
+  "風凪市琥珀町3-5秒で到達。",
+  "風凪市琥珀町3番目を選んだ。",
+  "風凪市琥珀町3-5個ある。",
+  "映画『風凪市琥珀町3-5』を見た。",
+  "小説「風凪市琥珀町3番地」を借りた。",
+  "模型『風凪市琥珀町 星雲ビル』は売り切れ。",
+]) {
+  const chars = Array.from(text);
+  const start = chars.findIndex((_, i) =>
+    chars.slice(i, i + 6).join("") === "風凪市琥珀町");
+  assert.ok(start >= 0);
+  const before = [{
+    start, end: start + 6, type: "ADDRESS", value: "風凪市琥珀町",
+  }];
+  assert.equal(JSON.stringify(repair(text, before)), JSON.stringify(before), text);
+}
+check("住所を「風凪市琥珀町三丁目」と記した。",
+  "風凪市琥珀町", "風凪市琥珀町三丁目");
+
 console.log("Address repair JS regressions PASS");
