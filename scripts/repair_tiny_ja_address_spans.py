@@ -40,9 +40,13 @@ _PROSE_NUMBER_END = re.compile(
 _TITLE_HINTS = ("映画", "短編", "小説", "漫画", "模型", "作品", "題名", "タイトル")
 
 
-def _in_quoted_work_title(text: str, start: int) -> bool:
-    """Do not extend a seeded location inside a clearly indicated work title."""
-    prefix = text[:start]
+def _in_quoted_work_title(text: str, start: int, end: int) -> bool:
+    """Decline spans ending inside a work title even when they start at its quote.
+
+    NER predictions can include a leading opening quote or preceding particle.
+    Checking only 'start' silently misses those candidates.
+    """
+    prefix = text[:end]
     for opening, closing in (("『", "』"), ("「", "」")):
         left = prefix.rfind(opening)
         if left > prefix.rfind(closing):
@@ -74,7 +78,7 @@ def repair_address_spans(text: str, spans: list[dict]) -> list[dict]:
             continue
 
         original = text[start:end]
-        if _in_quoted_work_title(text, start):
+        if _in_quoted_work_title(text, start, end):
             out.append(span)
             continue
         if not _ADMIN_NEAR.search(original):
