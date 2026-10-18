@@ -110,6 +110,7 @@ try {
     seed: result.adversarial.seed === reference.adversarial.seed,
     cases: result.adversarial.onnxInt8.cases === reference.adversarial.onnxInt8.cases,
     summary: equivalent(result.adversarial.onnxInt8, reference.adversarial.onnxInt8),
+    addressRepair: equivalent(result.adversarial.addressRepair, reference.adversarial.addressRepair),
   };
   result.adversarial.pythonOnnxParity = adversarialParity;
 
