@@ -119,6 +119,32 @@ The model itself has **not** improved: these are downstream candidate-span chang
 
 **Next gates:** independent unseen address forms and difficult negatives, no over-redaction of neighboring content, leading-particle and Unicode-safe alignment if wanted for exact spans, proper long-message windowing, and export rescanning. Maintain manual review and all existing structured-scanner checks.
 
+## Independent-format synthetic ADDRESS holdout: failure to generalize (2026-10-18)
+
+A second, separately authored generator, `scripts/generate_tiny_ja_address_holdout.py`, creates **192 fabricated cases across 16 previously absent format/semantic categories** (12 each). It does not import any vocabulary or templates from the initial 480-case adversarial generator. It contains chained `丁目…番…号`, `番地の…`, nonstandard long-vowel/em-dash separators, unfamiliar building names, `字` subdistricts, floors and building blocks, postal prefixes, fullwidth numbers, and **four contexts in which extending an apparent address would be erroneous**.
+
+Each case has original Unicode code-point gold spans and separately labeled `seedCandidates`. The seeded-prefix evaluation **simulates an oracle detector which returns an address prefix**, including 24 intentionally false-prefix candidates in two non-address title groups; these are not trained-model predictions. A second, separate evaluation uses the actual trained synthetic NER model. Both paths compare unchanged raw and repaired spans, with `overExtension` defined as newly added ADDRESS code points outside any labeled true ADDRESS, counted once per original-text code point.
+
+[First evidence-generating CI run](https://github.com/Fimalein/private-chat-analyzer/actions/runs/39121346382) **failed** because the expanded cases exposed native ONNX-vs-Chromium prediction differences. The original 24-case native/browser parity still passed, but adversarial parity and the model-driven holdout parity did not; the seeded-prefix (model-independent) holdout result **did** match across Python/JS. Treat backend disagreement as an unresolved research/blocking finding, not as a CI success.
+
+| Holdout metric (192 synthetic cases, 168 true ADDRESS entities) | Raw | Suffix repair |
+| --- | ---: | ---: |
+| Oracle-prefix exact match | **24/168 (14.3%)** | **0/168 (0%)** |
+| Oracle-prefix fully covered entities | 24/168 (14.3%) | **24/168 (14.3%)** |
+| Oracle-prefix uncovered labeled characters | 1,095 | 807 |
+| Actual NER full-entity coverage (Chromium) | 24/168 (14.3%) | **24/168 (14.3%)** |
+| Actual NER uncovered labeled characters (Chromium) | 969 | 789 |
+| Oracle-prefix newly over-extended characters | — | **144** |
+| Oracle-prefix cases with over-extension | — | **48/192** |
+| Model-driven newly over-extended characters (Chromium) | — | **144** |
+| Model-driven cases with over-extension (Chromium) | — | **48/192** |
+
+**Interpretation:** the suffix repair frequently extends only part of a novel structured address, or expands an ambiguous numeric range/counter or a fabricated work title as if it were a location. It can decrease uncovered *characters* without improving **any** fully covered entity, and can worsen exact boundaries by swallowing ordinary prose. The initially promising 480-case gains were not independently replicated. No claim of population-level privacy performance can be made from either synthetic set.
+
+A separate app CI job for this same revision failed at the pre-existing Next.js `next/font/google` / Turbopack build path; there is no evidence that the new standalone address generator changed the app build. The Python-only NER spike and dependency audit passed. The benchmark workflow now always uploads **metrics-only** artifacts even if the stricter parity gate fails, and logs a compact summary rather than flooding the job log.
+
+**Decision: block release.** Do not tune on this frozen holdout and continue calling it unseen; subsequent fixes need a fresh third evaluation set. Prioritize (1) over-extension safety gates for duration/ordinal/quoted title contexts, (2) address segmentation with explicit confidence and safe fallback, (3) true independent data and native/browser mismatch diagnosis, then (4) long-message chunking and Unicode alignment. Keep the model, postprocessor, and export scanner independent until each gate is verified.
+
 ## Decision gate
 
 Keep the PR in draft and the ML path unintegrated. Before any opt-in application use, require stronger exact-boundary/coverage performance, a plan for >94 content tokens (chunking or explicit detection failure), Unicode tokenizer remediation if parity breaks, difficult-negative review burden, browser offline/cache and Android-class tests, and a documented license/distribution decision. The structured scanner, Privacy Review and final export rescan must remain independent.
