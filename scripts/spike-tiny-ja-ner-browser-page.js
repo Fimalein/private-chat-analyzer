@@ -110,10 +110,19 @@
     let cursor = 0;
     for (const item of caseItem.gold) {
       const value = codePoints(item.value);
-      let start = findSubarray(text, value, cursor);
-      if (start < 0) start = findSubarray(text, value, 0);
-      if (start < 0) throw new Error(`Synthetic gold not found in ${caseItem.id}`);
-      const end = start + value.length;
+      let start;
+      let end;
+      if (Number.isInteger(item.start) && Number.isInteger(item.end)) {
+        start = item.start;
+        end = item.end;
+      } else {
+        start = findSubarray(text, value, cursor);
+        if (start < 0) start = findSubarray(text, value, 0);
+        end = start + value.length;
+      }
+      if (start < 0 || text.slice(start, end).join("") !== item.value) {
+        throw new Error(`Synthetic gold span invalid in ${caseItem.id}`);
+      }
       result.push({ start, end, type: item.type, value: item.value });
       cursor = end;
     }
@@ -185,6 +194,58 @@
     return { strict: block(same), overlap: block(overlaps), byType };
   }
 
+  function coverage(predictions, expected) {
+    let n = 0;
+    let covered = 0;
+    let totalChars = 0;
+    let uncoveredChars = 0;
+    for (let i = 0; i < predictions.length; i += 1) {
+      for (const g of expected[i]) {
+        n += 1;
+        let full = true;
+        for (let pos = g.start; pos < g.end; pos += 1) {
+          totalChars += 1;
+          if (!predictions[i].some((p) =>
+            p.type === g.type && p.start <= pos && pos < p.end)) {
+            uncoveredChars += 1;
+            full = false;
+          }
+        }
+        if (full) covered += 1;
+      }
+    }
+    return { gold: n, covered, recall: n ? covered / n : null,
+      totalCharacters: totalChars, uncoveredCharacters: uncoveredChars };
+  }
+
+  function adversarialSummary(cases, predictions, expected) {
+    function summarize(indices) {
+      const pp = indices.map((i) => predictions[i]);
+      const gg = indices.map((i) => expected[i]);
+      return {
+        cases: indices.length,
+        ...metrics(pp, gg),
+        fullCoverage: coverage(pp, gg),
+        negativeCasesWithPredictions: pp.filter((p, i) => !gg[i].length && p.length).length,
+      };
+    }
+    const result = summarize(cases.map((_, i) => i));
+    result.byGroup = {};
+    for (const group of [...new Set(cases.map((c) => c.group))].sort()) {
+      result.byGroup[group] = summarize(cases.flatMap(
+        (c, i) => c.group === group ? [i] : [],
+      ));
+    }
+    const mismatches = cases.flatMap((c, i) => {
+      const p = predictions[i].map((x) => `${x.start}:${x.end}:${x.type}`).sort().join("|");
+      const g = expected[i].map((x) => `${x.start}:${x.end}:${x.type}`).sort().join("|");
+      return p === g ? [] : [c.id];
+    });
+    result.mismatchCount = mismatches.length;
+    result.mismatchSampleIds = mismatches.slice(0, 12);
+    return result;
+  }
+
   function argmaxLabels(logits, sequenceLength, labelCount) {
     const out = new Array(sequenceLength);
     for (let token = 0; token < sequenceLength; token += 1) {
@@ -228,12 +289,13 @@
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.proxy = false;
 
-    const [vocabText, config, fixture] = await Promise.all([
+    const [vocabText, config, fixture, adversarial] = await Promise.all([
       fetchText("/benchmark-output/tiny-ja-ner/vocab.txt"),
       fetchJson("/benchmark-output/tiny-ja-ner/browser-config.json"),
       fetchJson("/tests/fixtures/synthetic/doccloak-ja-benchmark.json"),
+      fetchJson("/benchmark-output/tiny-ja-ner/adversarial-cases.json"),
     ]);
-    if (config.marker !== "SYNTHETIC_FIXTURE" || fixture.marker !== "SYNTHETIC_FIXTURE") {
+    if ([config, fixture, adversarial].some((value) => value.marker !== "SYNTHETIC_FIXTURE")) {
       throw new Error("Browser benchmark assets must be synthetic-only");
     }
 
@@ -297,6 +359,13 @@
         warmTimings.push(result.ms);
       }
     }
+    const advPred = [];
+    const advGold = [];
+    for (const item of adversarial.cases) {
+      advPred.push((await predict(item.text)).entities);
+      advGold.push(gold(item));
+    }
+    const adversarialResult = adversarialSummary(adversarial.cases, advPred, advGold);
     const heapAfterInference = performance.memory?.usedJSHeapSize ?? null;
     const benchmark = metrics(predictions, expected);
     await session.release();
@@ -330,6 +399,11 @@
         cases: fixture.cases.length,
         ...benchmark,
         mismatches,
+      },
+      adversarial: {
+        marker: "SYNTHETIC_FIXTURE",
+        seed: adversarial.seed,
+        onnxInt8: adversarialResult,
       },
     };
   };
