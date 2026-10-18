@@ -22,6 +22,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+import onnx
 import onnxruntime as ort
 import torch
 from onnxruntime.quantization import QuantType, quantize_dynamic
@@ -423,7 +424,14 @@ def export_and_quantize(model, tok):
                       "logits": {0: "batch", 1: "sequence"}},
         opset_version=17, dynamo=False,
     )
-    quantize_dynamic(fp, int8, weight_type=QuantType.QInt8)
+    # Keep DeBERTa's convolution in FP32: dynamic ConvInteger has no kernel
+    # in the pinned browser WASM runtime (observed in Chromium CI).
+    quantize_dynamic(fp, int8, weight_type=QuantType.QInt8,
+                     op_types_to_quantize=["MatMul", "Gemm"])
+    unsupported = [node.name for node in onnx.load(int8).graph.node
+                   if node.op_type == "ConvInteger"]
+    if unsupported:
+        raise RuntimeError(f"Browser-incompatible ConvInteger nodes: {len(unsupported)}")
     return fp, int8, time.perf_counter() - started
 
 
