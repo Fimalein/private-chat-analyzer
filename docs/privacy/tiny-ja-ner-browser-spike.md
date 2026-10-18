@@ -37,7 +37,7 @@ The spike pins:
 - `playwright@1.55.0`;
 - the same Python training/export stack used by PR #43.
 
-These are spike-only dependencies and are not added to the application package manifest or lockfile.
+These are spike-only dependencies and are not added to the application package manifest or lockfile. They are installed under the ignored `benchmark-output/tiny-ja-ner/browser-deps/` directory with an isolated npm prefix to avoid mixing the spike runtime with the Next.js application's dependency tree. The standalone Playwright CLI is run from that prefix.
 
 ## Decision gate
 
