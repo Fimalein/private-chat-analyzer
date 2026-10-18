@@ -69,6 +69,35 @@ class AddressBoundaryRepairTests(unittest.TestCase):
         span = entity(text2, "月凪市")
         self.assertEqual(repair_address_spans(text2, [span]), [span])
 
+    def test_ambiguous_numeric_prose_never_extended(self):
+        cases = [
+            "風凪市琥珀町3-5分以内に完了。",
+            "風凪市琥珀町3-5秒で到達。",
+            "風凪市琥珀町3番目を選んだ。",
+            "風凪市琥珀町3-5個ある。",
+            "風凪市琥珀町3-5日ほど。",
+        ]
+        for text in cases:
+            with self.subTest(text=text):
+                candidate = entity(text, "風凪市琥珀町")
+                self.assertEqual(repair_address_spans(text, [candidate]), [candidate])
+
+    def test_work_title_guard_preserves_candidate(self):
+        for text in (
+            "映画『風凪市琥珀町3-5』を見た。",
+            "小説「風凪市琥珀町3番地」を借りた。",
+            "模型『風凪市琥珀町 星雲ビル』は売り切れ。",
+        ):
+            with self.subTest(text=text):
+                candidate = entity(text, "風凪市琥珀町")
+                self.assertEqual(repair_address_spans(text, [candidate]), [candidate])
+
+    def test_legitimate_quoted_address_still_extends(self):
+        self.check_repair(
+            "住所を「風凪市琥珀町三丁目」と記した。",
+            "風凪市琥珀町", "風凪市琥珀町三丁目",
+        )
+
     def test_preserves_codepoint_offsets_and_repeated_entities(self):
         text = "🚃星舟市若波町1-2-3 → 星舟市若波町4-5-6🚶"
         raw1 = entity(text, "星舟市若波町")
