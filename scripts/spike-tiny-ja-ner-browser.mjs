@@ -120,6 +120,13 @@ try {
     model: equivalent(result.addressHoldout.model, reference.addressHoldout.model),
   };
   result.addressHoldout.pythonOnnxParity = holdoutParity;
+  const safetyParity = {
+    seed: result.addressSafetyHoldout.seed === reference.addressSafetyHoldout.seed,
+    cases: result.addressSafetyHoldout.cases === reference.addressSafetyHoldout.cases,
+    oraclePrefix: equivalent(result.addressSafetyHoldout.oraclePrefix, reference.addressSafetyHoldout.oraclePrefix),
+    model: equivalent(result.addressSafetyHoldout.model, reference.addressSafetyHoldout.model),
+  };
+  result.addressSafetyHoldout.pythonOnnxParity = safetyParity;
 
   // Read package metadata directly: onnxruntime-web does not export ./package.json.
   const dependencyVersion = (name) => JSON.parse(readFileSync(
@@ -167,12 +174,27 @@ try {
       },
       pythonOnnxParity: result.addressHoldout.pythonOnnxParity,
     },
+    addressSafetyHoldout: {
+      cases: result.addressSafetyHoldout.cases,
+      oraclePrefix: {
+        raw: result.addressSafetyHoldout.oraclePrefix.raw.fullCoverage,
+        repaired: result.addressSafetyHoldout.oraclePrefix.repaired.fullCoverage,
+        overExtension: result.addressSafetyHoldout.oraclePrefix.overExtension,
+      },
+      model: {
+        raw: result.addressSafetyHoldout.model.raw.fullCoverage,
+        repaired: result.addressSafetyHoldout.model.repaired.fullCoverage,
+        overExtension: result.addressSafetyHoldout.model.overExtension,
+      },
+      pythonOnnxParity: result.addressSafetyHoldout.pythonOnnxParity,
+    },
   }, null, 2));
   console.log(`Wrote ${output}`);
   if (!Object.values(parity).every(Boolean) ||
       !Object.values(adversarialParity).every(Boolean) ||
-      !Object.values(holdoutParity).every(Boolean)) {
-    throw new Error(`Browser/Python INT8 parity failed: ${JSON.stringify({ parity, adversarialParity, holdoutParity })}`);
+      !Object.values(holdoutParity).every(Boolean) ||
+      !Object.values(safetyParity).every(Boolean)) {
+    throw new Error(`Browser/Python INT8 parity failed: ${JSON.stringify({ parity, adversarialParity, holdoutParity, safetyParity })}`);
   }
 } finally {
   if (browser) await browser.close();
