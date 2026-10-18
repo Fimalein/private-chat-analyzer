@@ -326,14 +326,15 @@
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.proxy = false;
 
-    const [vocabText, config, fixture, adversarial, holdout] = await Promise.all([
+    const [vocabText, config, fixture, adversarial, holdout, safety] = await Promise.all([
       fetchText("/benchmark-output/tiny-ja-ner/vocab.txt"),
       fetchJson("/benchmark-output/tiny-ja-ner/browser-config.json"),
       fetchJson("/tests/fixtures/synthetic/doccloak-ja-benchmark.json"),
       fetchJson("/benchmark-output/tiny-ja-ner/adversarial-cases.json"),
       fetchJson("/benchmark-output/tiny-ja-ner/address-holdout.json"),
+      fetchJson("/benchmark-output/tiny-ja-ner/address-safety-holdout.json"),
     ]);
-    if ([config, fixture, adversarial, holdout].some((value) => value.marker !== "SYNTHETIC_FIXTURE")) {
+    if ([config, fixture, adversarial, holdout, safety].some((value) => value.marker !== "SYNTHETIC_FIXTURE")) {
       throw new Error("Browser benchmark assets must be synthetic-only");
     }
 
@@ -425,6 +426,19 @@
       ),
       model: evaluateAddressHoldout(holdout.cases, holdoutPredictions),
     };
+    const safetyPredictions = [];
+    for (const item of safety.cases) {
+      safetyPredictions.push((await predict(item.text)).entities);
+    }
+    const safetyResults = {
+      marker: "SYNTHETIC_FIXTURE",
+      seed: safety.seed,
+      cases: safety.cases.length,
+      oraclePrefix: evaluateAddressHoldout(
+        safety.cases, safety.cases.map((item) => item.seedCandidates),
+      ),
+      model: evaluateAddressHoldout(safety.cases, safetyPredictions),
+    };
     const heapAfterInference = performance.memory?.usedJSHeapSize ?? null;
     const benchmark = metrics(predictions, expected);
     await session.release();
@@ -460,6 +474,7 @@
         mismatches,
       },
       addressHoldout: holdoutResults,
+      addressSafetyHoldout: safetyResults,
       adversarial: {
         marker: "SYNTHETIC_FIXTURE",
         seed: adversarial.seed,
