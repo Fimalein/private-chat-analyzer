@@ -13,8 +13,9 @@
   const PROSE_NUMBER_END = /^(?:分|秒|時間|日|週間?|年|回|個|件|人|枚|本|ページ|目|番目|km|ｋｍ|m|ｍ|㎞|メートル)/u;
   const TITLE_HINTS = ["映画", "短編", "小説", "漫画", "模型", "作品", "題名", "タイトル"];
 
-  function inQuotedWorkTitle(chars, start) {
-    const prefix = chars.slice(0, start).join("");
+  function inQuotedWorkTitle(chars, start, end) {
+    // Detect candidates that begin at the opening quote or preceding particle.
+    const prefix = chars.slice(0, end).join("");
     for (const [opening, closing] of [["『", "』"], ["「", "」"]]) {
       const left = prefix.lastIndexOf(opening);
       if (left > prefix.lastIndexOf(closing)) {
@@ -41,7 +42,7 @@
         return span;
       }
       const original = chars.slice(start, end).join("");
-      if (inQuotedWorkTitle(chars, start)) return span;
+      if (inQuotedWorkTitle(chars, start, end)) return span;
       if (!ADMIN_NEAR.test(original)) return span;
 
       const rest = chars.slice(end).join("");
