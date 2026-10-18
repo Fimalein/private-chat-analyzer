@@ -22,12 +22,17 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
+import onnx
 import onnxruntime as ort
 import torch
 from onnxruntime.quantization import QuantType, quantize_dynamic
 from torch import nn
 from torch.optim import AdamW
 from torch.utils.data import DataLoader, Dataset
+from generate_tiny_ja_ner_adversarial import generate as adversarial_cases
+from generate_tiny_ja_address_holdout import generate as address_holdout_cases
+from generate_tiny_ja_address_safety_holdout import generate as address_safety_cases
+from repair_tiny_ja_address_spans import repair_address_spans
 from transformers import (
     AutoModelForTokenClassification,
     AutoTokenizer,
@@ -329,12 +334,15 @@ def gold(case):
     result = []
     cursor = 0
     for item in case["gold"]:
-        start = text.find(item["value"], cursor)
-        if start < 0:
-            start = text.find(item["value"])
-        if start < 0:
-            raise RuntimeError(f"Synthetic gold not found in {case['id']}")
-        end = start + len(item["value"])
+        if "start" in item and "end" in item:
+            start, end = item["start"], item["end"]
+        else:
+            start = text.find(item["value"], cursor)
+            if start < 0:
+                start = text.find(item["value"])
+            end = start + len(item["value"])
+        if start < 0 or text[start:end] != item["value"]:
+            raise RuntimeError(f"Synthetic gold span invalid in {case['id']}")
         result.append({"start": start, "end": end, "type": item["type"], "value": item["value"]})
         cursor = end
     return result
@@ -392,6 +400,97 @@ def evaluate(cases, predictor):
     return metrics(predictions, expected), timings, mismatches
 
 
+def coverage(predictions, expected):
+    """Union of same-type prediction spans; uncovered code points are leak candidates."""
+    n = 0
+    covered = 0
+    total_chars = 0
+    uncovered_chars = 0
+    for preds, golds in zip(predictions, expected):
+        for g in golds:
+            n += 1
+            full = True
+            for pos in range(g["start"], g["end"]):
+                total_chars += 1
+                if not any(p["type"] == g["type"] and p["start"] <= pos < p["end"] for p in preds):
+                    uncovered_chars += 1
+                    full = False
+            covered += int(full)
+    return {"gold": n, "covered": covered, "recall": covered / n if n else None,
+            "totalCharacters": total_chars, "uncoveredCharacters": uncovered_chars}
+
+
+def adversarial_evaluate(cases, predictions, transform=None):
+    if len(cases) != len(predictions):
+        raise ValueError("Adversarial predictions must match case count")
+    if transform is not None:
+        predictions = [transform(c["text"], p) for c, p in zip(cases, predictions)]
+    expected = [gold(c) for c in cases]
+
+    def summary(subset):
+        pp = [predictions[i] for i in subset]
+        gg = [expected[i] for i in subset]
+        m = metrics(pp, gg)
+        return {
+            "cases": len(subset),
+            "strict": m["strict"],
+            "overlap": m["overlap"],
+            "byType": m["byType"],
+            "fullCoverage": coverage(pp, gg),
+            "negativeCasesWithPredictions": sum(1 for p, g in zip(pp, gg) if not g and p),
+        }
+
+    overall = summary(list(range(len(cases))))
+    overall["byGroup"] = {
+        group: summary([i for i, c in enumerate(cases) if c["group"] == group])
+        for group in sorted({c["group"] for c in cases})
+    }
+    mismatches = [
+        c["id"] for c, p, g in zip(cases, predictions, expected)
+        if {(x["start"], x["end"], x["type"]) for x in p}
+           != {(x["start"], x["end"], x["type"]) for x in g}
+    ]
+    overall["mismatchCount"] = len(mismatches)
+    overall["mismatchSampleIds"] = mismatches[:12]
+    return overall
+
+
+def address_overextension(cases, before, after):
+    """Only newly added ADDRESS code points outside gold are overreach."""
+    added = 0
+    outside = 0
+    affected = []
+    for case, raw, repaired in zip(cases, before, after):
+        old_points = {pos for item in raw if item["type"] == "ADDRESS"
+                      for pos in range(item["start"], item["end"])}
+        new_points = {pos for item in repaired if item["type"] == "ADDRESS"
+                      for pos in range(item["start"], item["end"])}
+        gold_points = {pos for item in gold(case) if item["type"] == "ADDRESS"
+                       for pos in range(item["start"], item["end"])}
+        extra = new_points - old_points
+        wrong = extra - gold_points
+        added += len(extra)
+        outside += len(wrong)
+        if wrong:
+            affected.append(case["id"])
+    return {
+        "addedCharacters": added,
+        "overExtendedCharacters": outside,
+        "casesWithOverExtension": len(affected),
+        "sampleIds": affected[:12],
+    }
+
+
+def evaluate_address_holdout(cases, predictions):
+    expected = [gold(c) for c in cases]
+    repaired = [repair_address_spans(c["text"], p) for c, p in zip(cases, predictions)]
+    return {
+        "raw": adversarial_evaluate(cases, predictions),
+        "repaired": adversarial_evaluate(cases, repaired),
+        "overExtension": address_overextension(cases, predictions, repaired),
+    }
+
+
 def torch_predict(model, tok, text):
     ids, mask, source = tok.encode(text)
     started = time.perf_counter()
@@ -423,18 +522,37 @@ def export_and_quantize(model, tok):
                       "logits": {0: "batch", 1: "sequence"}},
         opset_version=17, dynamo=False,
     )
-    quantize_dynamic(fp, int8, weight_type=QuantType.QInt8)
+    # Keep DeBERTa's convolution in FP32: dynamic ConvInteger has no kernel
+    # in the pinned browser WASM runtime (observed in Chromium CI).
+    quantize_dynamic(fp, int8, weight_type=QuantType.QInt8,
+                     op_types_to_quantize=["MatMul", "Gemm"])
+    unsupported = [node.name for node in onnx.load(int8).graph.node
+                   if node.op_type == "ConvInteger"]
+    if unsupported:
+        raise RuntimeError(f"Browser-incompatible ConvInteger nodes: {len(unsupported)}")
     return fp, int8, time.perf_counter() - started
 
 
-def ort_predict(session, tok, text):
+def ort_predict(session, tok, text, trace=None):
     ids, mask, source = tok.encode(text)
     started = time.perf_counter()
     logits = session.run(["logits"], {
         "input_ids": np.asarray([ids], dtype=np.int64),
         "attention_mask": np.asarray([mask], dtype=np.int64),
     })[0]
-    return decode(text, source, logits.argmax(-1)[0].tolist()), (time.perf_counter() - started) * 1000
+    elapsed = (time.perf_counter() - started) * 1000
+    if trace is not None:
+        scores = logits[0]
+        top_labels = scores.argmax(axis=-1)
+        # Tie behavior must agree with the actual argmax used for decoding.
+        trace.append([
+            {"source": int(pos), "label": int(top_labels[i]),
+             "margin": round(float(scores[i, top_labels[i]] -
+                                   max(float(value) for label, value in enumerate(scores[i])
+                                       if label != top_labels[i])), 6)}
+            for i, pos in enumerate(source) if pos >= 0
+        ])
+    return decode(text, source, logits.argmax(-1)[0].tolist()), elapsed
 
 
 def main():
@@ -457,6 +575,22 @@ def main():
     if fixture.get("marker") != "SYNTHETIC_FIXTURE":
         raise RuntimeError("Benchmark fixture must declare SYNTHETIC_FIXTURE")
     cases = fixture["cases"]
+    adversarial_fixture = adversarial_cases()
+    adversarial_rows = adversarial_fixture["cases"]
+    holdout_fixture = address_holdout_cases()
+    holdout_rows = holdout_fixture["cases"]
+    safety_fixture = address_safety_cases()
+    safety_rows = safety_fixture["cases"]
+    # A generated fixture is ignored by git and used only inside this run.
+    (OUTPUT_DIR / "adversarial-cases.json").write_text(
+        json.dumps(adversarial_fixture, ensure_ascii=False), encoding="utf-8",
+    )
+    (OUTPUT_DIR / "address-holdout.json").write_text(
+        json.dumps(holdout_fixture, ensure_ascii=False), encoding="utf-8",
+    )
+    (OUTPUT_DIR / "address-safety-holdout.json").write_text(
+        json.dumps(safety_fixture, ensure_ascii=False), encoding="utf-8",
+    )
 
     parity_texts = [x.text for x in train_examples[:100]] + [x["text"] for x in cases]
     parity_failures = []
@@ -480,7 +614,77 @@ def main():
     session_started = time.perf_counter()
     session = ort.InferenceSession(str(int8), providers=["CPUExecutionProvider"])
     session_load = time.perf_counter() - session_started
-    onnx_metrics, onnx_times, onnx_misses = evaluate(cases, lambda text: ort_predict(session, tok, text))
+    native_traces = {}
+    def traced_predictor(suite):
+        native_traces[suite] = []
+        return lambda text: ort_predict(session, tok, text, native_traces[suite])
+
+    onnx_metrics, onnx_times, onnx_misses = evaluate(
+        cases, traced_predictor("baseline")
+    )
+
+    # Record difficult upstream-tokenizer incompatibilities as findings rather
+    # than silently dropping stress cases from this evaluation.
+    parity_adversarial_failures = [
+        c["id"] for c in adversarial_rows
+        if not tok.parity(c["text"])[0]
+    ]
+    # Evaluate native ONNX inference only once per adversarial case: repair is
+    # computed separately from those identical predictions, not a retraining.
+    adv_predict = traced_predictor("adversarial")
+    adversarial_predictions = [
+        adv_predict(c["text"])[0] for c in adversarial_rows
+    ]
+    adversarial_onnx = adversarial_evaluate(adversarial_rows, adversarial_predictions)
+    repaired_onnx = adversarial_evaluate(
+        adversarial_rows, adversarial_predictions, transform=repair_address_spans
+    )
+    holdout_predict = traced_predictor("addressHoldout")
+    holdout_predictions = [
+        holdout_predict(c["text"])[0] for c in holdout_rows
+    ]
+    holdout_results = {
+        "marker": "SYNTHETIC_FIXTURE",
+        "seed": holdout_fixture["seed"],
+        "cases": len(holdout_rows),
+        "oraclePrefix": evaluate_address_holdout(
+            holdout_rows, [c["seedCandidates"] for c in holdout_rows]
+        ),
+        "model": evaluate_address_holdout(holdout_rows, holdout_predictions),
+    }
+
+    safety_predict = traced_predictor("addressSafetyHoldout")
+    safety_predictions = [
+        safety_predict(c["text"])[0] for c in safety_rows
+    ]
+    safety_results = {
+        "marker": "SYNTHETIC_FIXTURE",
+        "seed": safety_fixture["seed"],
+        "cases": len(safety_rows),
+        "oraclePrefix": evaluate_address_holdout(
+            safety_rows, [c["seedCandidates"] for c in safety_rows]
+        ),
+        "model": evaluate_address_holdout(safety_rows, safety_predictions),
+    }
+
+    # These are strictly synthetic local-workspace traces. No input text,
+    # vocabulary IDs, model weights, or actual conversations are saved.
+    (OUTPUT_DIR / "native-parity-traces.json").write_text(
+        json.dumps({
+            "marker": "SYNTHETIC_FIXTURE",
+            "suites": {
+                suite: [{"id": case["id"], "tokens": trace}
+                        for case, trace in zip(rows, native_traces[suite])]
+                for suite, rows in (
+                    ("baseline", cases),
+                    ("adversarial", adversarial_rows),
+                    ("addressHoldout", holdout_rows),
+                    ("addressSafetyHoldout", safety_rows),
+                )
+            },
+        }, ensure_ascii=False),
+        encoding="utf-8",
+    )
 
     result = {
         "marker": "SYNTHETIC_FIXTURE",
@@ -507,6 +711,19 @@ def main():
         "benchmark": {"cases": len(cases), "torch": torch_metrics, "onnxInt8": onnx_metrics,
                       "onnxMatchesTorchStrict": onnx_metrics["strict"] == torch_metrics["strict"],
                       "torchMismatches": torch_misses, "onnxMismatches": onnx_misses},
+        "addressHoldout": holdout_results,
+        "addressSafetyHoldout": safety_results,
+        "adversarial": {
+            "marker": "SYNTHETIC_FIXTURE",
+            "seed": adversarial_fixture["seed"],
+            "tokenizerParity": {
+                "checked": len(adversarial_rows),
+                "failureCount": len(parity_adversarial_failures),
+                "sampleIds": parity_adversarial_failures[:12],
+            },
+            "onnxInt8": adversarial_onnx,
+            "addressRepair": repaired_onnx,
+        },
     }
     path = OUTPUT_DIR / "results.json"
     path.write_text(json.dumps(result, ensure_ascii=False, indent=2), encoding="utf-8")
