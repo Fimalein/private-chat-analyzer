@@ -44,15 +44,17 @@ class AddressHoldoutTests(unittest.TestCase):
                 self.assertGreater(row["gold"][0]["end"],
                                    row["seedCandidates"][0]["end"])
 
-    def test_known_false_positive_stress_is_visible(self):
-        # The experiment must include cases where a plausible but false
-        # initial ADDRESS prediction is dangerously expanded.
-        rows = [r for r in self.cases if r["group"] == "title_with_numbers"]
+    def test_known_false_positive_titles_are_no_longer_extended(self):
+        # This previously exposed over-extension. Keep it as a regression
+        # case after the title-context guard is introduced.
+        rows = [r for r in self.cases
+                if r["group"] in {"title_with_numbers", "title_with_building"}]
         self.assertTrue(rows)
-        self.assertTrue(any(
-            repair_address_spans(r["text"], r["seedCandidates"])[0]["end"]
-            > r["seedCandidates"][0]["end"] for r in rows
-        ), "Holdout must be capable of detecting over-extension")
+        for row in rows:
+            self.assertEqual(
+                repair_address_spans(row["text"], row["seedCandidates"]),
+                row["seedCandidates"], row["id"],
+            )
 
     def test_malformed_span_rejected(self):
         rows = json.loads(json.dumps(self.cases))
