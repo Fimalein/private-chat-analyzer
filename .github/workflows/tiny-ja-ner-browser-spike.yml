@@ -46,8 +46,13 @@ jobs:
 
           out = Path("benchmark-output/tiny-ja-ner")
           tok = AutoTokenizer.from_pretrained("ku-nlp/deberta-v2-tiny-japanese-char-wwm", use_fast=False)
-          vocab_file = Path(tok.vocab_file)
-          (out / "vocab.txt").write_text(vocab_file.read_text(encoding="utf-8"), encoding="utf-8")
+          vocab = tok.get_vocab()
+          ordered_vocab = [None] * (max(vocab.values()) + 1)
+          for token, token_id in vocab.items():
+              ordered_vocab[token_id] = token
+          if any(token is None for token in ordered_vocab):
+              raise RuntimeError("Tokenizer vocabulary IDs are not contiguous")
+          (out / "vocab.txt").write_text("\n".join(ordered_vocab) + "\n", encoding="utf-8")
           (out / "browser-config.json").write_text(
               json.dumps(
                   {
