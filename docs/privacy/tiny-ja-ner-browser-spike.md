@@ -39,6 +39,10 @@ The spike pins:
 
 These are spike-only dependencies and are not added to the application package manifest or lockfile. They are installed under the ignored `benchmark-output/tiny-ja-ner/browser-deps/` directory with an isolated npm prefix to avoid mixing the spike runtime with the Next.js application's dependency tree. The standalone Playwright CLI is run from that prefix.
 
+## Quantization compatibility finding
+
+The initial all-operator dynamic INT8 export loaded in native Python ONNX Runtime but failed inside Chromium WASM because the DeBERTa convolution was converted to a `ConvInteger` node that the pinned browser runtime could not execute. This is a runtime compatibility failure, not an accuracy result. The follow-up export quantizes only `MatMul`/`Gemm`, leaving convolution in FP32, and asserts that no `ConvInteger` nodes remain. The resulting model size and browser metrics must be measured again; the original ~7 MiB figure does not automatically apply to this revised graph.
+
 ## Decision gate
 
 A successful browser run is necessary but not sufficient for shipping. Before integration, #44 still requires broader adversarial exact-boundary testing, especially PERSON and ADDRESS boundaries, difficult Unicode/tokenizer parity cases, realistic memory measurements, and a documented distribution/license decision for any model artifact that would be shipped.
