@@ -246,6 +246,43 @@
     return result;
   }
 
+  function addressOverextension(cases, before, after, expected) {
+    let addedCharacters = 0;
+    let overExtendedCharacters = 0;
+    const sampleIds = [];
+    const points = (spans) => new Set(spans.filter((s) => s.type === "ADDRESS").flatMap(
+      (s) => Array.from({ length: s.end - s.start }, (_, i) => s.start + i),
+    ));
+    for (let i = 0; i < cases.length; i += 1) {
+      const previous = points(before[i]);
+      const current = points(after[i]);
+      const allowed = points(expected[i]);
+      const added = [...current].filter((pos) => !previous.has(pos));
+      const wrong = added.filter((pos) => !allowed.has(pos));
+      addedCharacters += added.length;
+      overExtendedCharacters += wrong.length;
+      if (wrong.length) sampleIds.push(cases[i].id);
+    }
+    return {
+      addedCharacters,
+      overExtendedCharacters,
+      casesWithOverExtension: sampleIds.length,
+      sampleIds: sampleIds.slice(0, 12),
+    };
+  }
+
+  function evaluateAddressHoldout(cases, predictions) {
+    const expected = cases.map(gold);
+    const repaired = cases.map((item, i) =>
+      window.repairTinyJaAddressSpans(item.text, predictions[i]),
+    );
+    return {
+      raw: adversarialSummary(cases, predictions, expected),
+      repaired: adversarialSummary(cases, repaired, expected),
+      overExtension: addressOverextension(cases, predictions, repaired, expected),
+    };
+  }
+
   function argmaxLabels(logits, sequenceLength, labelCount) {
     const out = new Array(sequenceLength);
     for (let token = 0; token < sequenceLength; token += 1) {
@@ -289,13 +326,14 @@
     ort.env.wasm.numThreads = 1;
     ort.env.wasm.proxy = false;
 
-    const [vocabText, config, fixture, adversarial] = await Promise.all([
+    const [vocabText, config, fixture, adversarial, holdout] = await Promise.all([
       fetchText("/benchmark-output/tiny-ja-ner/vocab.txt"),
       fetchJson("/benchmark-output/tiny-ja-ner/browser-config.json"),
       fetchJson("/tests/fixtures/synthetic/doccloak-ja-benchmark.json"),
       fetchJson("/benchmark-output/tiny-ja-ner/adversarial-cases.json"),
+      fetchJson("/benchmark-output/tiny-ja-ner/address-holdout.json"),
     ]);
-    if ([config, fixture, adversarial].some((value) => value.marker !== "SYNTHETIC_FIXTURE")) {
+    if ([config, fixture, adversarial, holdout].some((value) => value.marker !== "SYNTHETIC_FIXTURE")) {
       throw new Error("Browser benchmark assets must be synthetic-only");
     }
 
@@ -373,6 +411,20 @@
       window.repairTinyJaAddressSpans(item.text, advPred[index]),
     );
     const repairedResult = adversarialSummary(adversarial.cases, repairedPred, advGold);
+
+    const holdoutPredictions = [];
+    for (const item of holdout.cases) {
+      holdoutPredictions.push((await predict(item.text)).entities);
+    }
+    const holdoutResults = {
+      marker: "SYNTHETIC_FIXTURE",
+      seed: holdout.seed,
+      cases: holdout.cases.length,
+      oraclePrefix: evaluateAddressHoldout(
+        holdout.cases, holdout.cases.map((item) => item.seedCandidates),
+      ),
+      model: evaluateAddressHoldout(holdout.cases, holdoutPredictions),
+    };
     const heapAfterInference = performance.memory?.usedJSHeapSize ?? null;
     const benchmark = metrics(predictions, expected);
     await session.release();
@@ -407,6 +459,7 @@
         ...benchmark,
         mismatches,
       },
+      addressHoldout: holdoutResults,
       adversarial: {
         marker: "SYNTHETIC_FIXTURE",
         seed: adversarial.seed,
