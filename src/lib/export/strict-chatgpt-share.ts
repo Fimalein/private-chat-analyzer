@@ -64,11 +64,30 @@ function sourceSensitiveValues(
   )];
 }
 
-function decodedStrings(value: unknown): string[] {
-  if (typeof value === "string") return [value];
-  if (Array.isArray(value)) return value.flatMap(decodedStrings);
+function decodedStrings(value: unknown, depth = 0): string[] {
+  if (depth > 5) {
+    throw new StrictShareBlockedError("invalid_serialized_artifact");
+  }
+  if (typeof value === "string") {
+    const values = [value];
+    // Some exported fields are JSON-as-text. Examine parsed inner content
+    // rather than relying only on the literal backslash-escaped bytes.
+    const head = value.trimStart()[0];
+    if (head === "{" || head === "[") {
+      try {
+        const parsed: unknown = JSON.parse(value);
+        values.push(...decodedStrings(parsed, depth + 1));
+      } catch (error) {
+        if (error instanceof StrictShareBlockedError) throw error;
+        // An ordinary user sentence can begin with "{". Keep scanning it.
+      }
+    }
+    return values;
+  }
+  if (Array.isArray(value)) return value.flatMap((child) => decodedStrings(child, depth + 1));
   if (value !== null && typeof value === "object") {
-    return Object.entries(value).flatMap(([key, child]) => [key, ...decodedStrings(child)]);
+    return Object.entries(value).flatMap(([key, child]) =>
+      [key, ...decodedStrings(child, depth + 1)]);
   }
   return [];
 }
