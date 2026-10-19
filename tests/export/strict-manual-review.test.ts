@@ -149,7 +149,8 @@ describe("synthetic local manual sentence masking", () => {
       SYNTHETIC_EXPORT_MESSAGES, SYNTHETIC_EXPORT_MAPPINGS,
       { ...options, dateMode: { mode: "shift_weeks", weeks: 3 },
         confirmedHumanReview: true }, before.files, reviewed,
-    ), "preview_changed");
+    ), "serialized_structured_pii"); // shifted mode also serializes numeric epoch timestampMs;
+                                  // strict post-serialization scan blocks it before snapshot comparison.
 
     const altered = before.files.map((file) => ({ ...file }));
     altered[1].content += " extra";
