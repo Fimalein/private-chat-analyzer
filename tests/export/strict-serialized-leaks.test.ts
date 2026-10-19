@@ -123,6 +123,23 @@ describe("strict sharing serialized leak matrix (SYNTHETIC_FIXTURE)", () => {
     inspectStrictSerializedFiles(pack.files, SYNTHETIC_EXPORT_RAW_VALUES);
   });
 
+  it("blocks a missing pseudonym for any sender name or ID", () => {
+    const missing = SYNTHETIC_EXPORT_MAPPINGS.filter(
+      (mapping) => mapping.source !== SYNTHETIC_EXPORT_MESSAGES[0].senderName,
+    );
+    blocked(() => previewStrictChatGptSharePack(
+      SYNTHETIC_EXPORT_MESSAGES, missing, options,
+    ), "unmasked_participant");
+
+    const changedSender = [{
+      ...SYNTHETIC_EXPORT_MESSAGES[0],
+      senderId: "FICTITIOUS_INTERNAL_SENDER_TAG",
+    }];
+    blocked(() => previewStrictChatGptSharePack(
+      changedSender, SYNTHETIC_EXPORT_MAPPINGS, options,
+    ), "unmasked_participant");
+  });
+
   it("preview is separate from explicit final human review", () => {
     const preview = previewStrictChatGptSharePack(
       SYNTHETIC_EXPORT_MESSAGES, SYNTHETIC_EXPORT_MAPPINGS, options,
