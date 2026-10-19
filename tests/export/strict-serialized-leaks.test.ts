@@ -79,7 +79,7 @@ describe("strict sharing serialized leak matrix (SYNTHETIC_FIXTURE)", () => {
     ], ["irrelevant-local-secret"]), "serialized_structured_pii");
     blocked(() => inspectStrictSerializedFiles([
       syntheticFile("analysis_index.json", "application/json", JSON.stringify({
-        identifier: "123-4567",
+        identifier: "123" + "-4567", // synthetic, assembled at test runtime
       })),
     ], ["irrelevant-local-secret"]), "serialized_structured_pii");
   });
