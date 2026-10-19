@@ -26,6 +26,7 @@ const LABELS: Record<string, [string, string]> = {
   relative_date_required: ["Relative dates are required.", "必須使用相對日期。"],
   known_values_required: ["Enter at least one sensitive name or phrase to protect.", "請填入至少一個需要保護的名字或詞句。"],
   empty_selection: ["No messages selected.", "尚未選取訊息。"],
+  unmasked_participant: ["A participant name or sender ID is not pseudonymized. Map every participant in Privacy Review before previewing.", "尚有參與者名稱或發訊者 ID 未使用假名。請先完成隱私映射。"],
   unresolved_structured_pii: ["Unmasked structured identifiers remain. Complete Privacy Review first.", "仍有未遮蔽的識別資訊。請先完成隱私檢查。"],
   invalid_serialized_artifact: ["An export file could not be checked.", "無法檢查匯出檔案。"],
   serialized_structured_pii: ["An identifier remains in a generated file. Preview blocked.", "產生的檔案仍含識別資訊，已封鎖預覽。"],
