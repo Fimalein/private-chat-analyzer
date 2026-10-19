@@ -24,6 +24,8 @@ export type StrictShareOptions = StrictSharePreviewOptions & {
 
 export type StrictShareBlockedReason =
   | "manual_review_required"
+  | "file_review_incomplete"
+  | "preview_changed"
   | "relative_date_required"
   | "known_values_required"
   | "empty_selection"
@@ -166,6 +168,43 @@ export function buildStrictChatGptSharePack(
     throw new StrictShareBlockedError("manual_review_required");
   }
   return inspectPack(rawMessages, mappings, options);
+}
+
+/**
+ * A release decision is bound to the exact files displayed to the reviewer.
+ * Any change in messages, sentence masking, mapping, denylist, or dates must
+ * cause the regenerated output to differ and therefore fail closed.
+ *
+ * Reviewing files here is an explicit user action, not a proof of anonymity.
+ */
+export function approveStrictChatGptSharePack(
+  rawMessages: readonly ChatMessage[],
+  mappings: readonly EntityMapping[],
+  options: StrictShareOptions,
+  previewFiles: readonly ChatGptExportFile[],
+  reviewedFileNames: readonly string[],
+): ChatGptExportPack {
+  const expected = [
+    "chat_redacted.txt",
+    "chat_redacted.jsonl",
+    "analysis_index.json",
+    "ChatGPT_analysis_instructions.txt",
+  ];
+  if (expected.some((name) => !reviewedFileNames.includes(name)) ||
+      reviewedFileNames.length !== expected.length) {
+    throw new StrictShareBlockedError("file_review_incomplete");
+  }
+  const pack = buildStrictChatGptSharePack(rawMessages, mappings, options);
+  if (pack.files.length !== expected.length ||
+      previewFiles.length !== expected.length ||
+      pack.files.some((file, index) =>
+        file.name !== expected[index] ||
+        previewFiles[index].name !== file.name ||
+        previewFiles[index].type !== file.type ||
+        previewFiles[index].content !== file.content)) {
+    throw new StrictShareBlockedError("preview_changed");
+  }
+  return pack;
 }
 
 /** Explicit minimization: only a bounded trailing subset, never all by default. */
