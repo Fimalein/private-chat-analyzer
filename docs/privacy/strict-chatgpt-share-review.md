@@ -20,6 +20,18 @@ Unit tests test Japanese text segmentation with emoji and CRLF; sentence, messag
 
 CI reference: [Actions run 39219529462](https://github.com/Fimalein/private-chat-analyzer/actions/runs/39219529462), **121 tests / 13 test files passed**, including Next.js production typecheck/build. Dependency audit: [run 39219529524](https://github.com/Fimalein/private-chat-analyzer/actions/runs/39219529524), passed.
 
+## Encoded-leak guards and contextual linkage review (2026-10-19)
+
+The strict preflight's last serialized-artifact scan now tries bounded decoding of **percent-encoded UTF-8, Unicode escape sequences, decimal/hex HTML references and selected named entities**, recursively up to three passes, as well as checking UTF-8 **base64** representations of user-listed values with at least four characters. It continues to normalize NFKC/zero-width formatting and check decoded JSON/JSONL fields and object keys. No decoding is applied to content being exported; these transforms are only for defensive detection. Unsupported formats or oversized files are blocked rather than silently passing inspection. The protection is deliberately **not a general decoder for arbitrary transformations, compression, encryption or creative spelling**, and only works for strings provided in the local denylist, source mappings, or scanner-recognized identifiers.
+
+To reduce social re-identification risk, the local strict-share UI now requires **four distinct contextual review acknowledgements** before the already-required per-file confirmations and final download authorization: (1) school, workplace, organizations and precise places, (2) unique events/achievements, (3) relationship, family, medical or other sensitive narratives, and (4) clues combined across messages, chronology and reply gaps. Each is a human decision, not an algorithmic judgment or evidence of consent from others. All flags and approval are invalidated if review inputs or export preview change.
+
+A newly fabricated regression set deliberately combines a fictional recurring schedule with a fictional unusual achievement. Those clues **can remain in a pack that passes all structured automated scanning**. The test asserts that final approval is refused unless *all four* contextual categories have been explicitly reviewed; it also demonstrates that checking boxes does not actually remove linkable clues. Users should omit or generalize rare details and choose much smaller subsets when possible.
+
+[Verified GitHub Actions run](https://github.com/Fimalein/private-chat-analyzer/actions/runs/39243988130): **137/137 tests in 16 test files passed**, production build passed, and the separate dependency audit passed. These tests contain no real conversations.
+
+**Open security limitations:** the encoded-value checks are finite and input-length bounded; names never listed or recognized remain invisible. False positives are possible, especially for one-character denylist items or common encoded substrings. Manual cross-message review, participant privacy, independent novel leak corpora, UI/browser e2e testing, mobile/network inspection and outside security review remain necessary. Do not represent the results as guaranteed anonymity or general permission to upload private transcripts.
+
 ## Remaining gates before recommending full private chat upload
 
 - **Manual/contextual review cannot be automated away.** Unknown names, indirect descriptions, sensitive life events, medical/family/intimate context, and cross-message combinations may identify participants even when no single known secret survives.
