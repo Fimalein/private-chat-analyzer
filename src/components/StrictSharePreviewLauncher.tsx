@@ -5,6 +5,8 @@ import { useChat } from "@/components/ChatProvider";
 import { useLocale } from "@/components/LocaleProvider";
 import {
   approveStrictChatGptSharePack,
+  STRICT_CONTEXT_REVIEW_CATEGORIES,
+  type StrictContextReviewCategory,
   previewStrictChatGptSharePack,
   selectRecentStrictShareMessages,
   StrictShareBlockedError,
@@ -27,6 +29,7 @@ const ERRORS: Record<string, [string, string]> = {
   manual_review_required: ["Manual privacy review is required.", "須先人工審查隱私。"],
   file_review_incomplete: ["Inspect and explicitly approve all four files.", "必須逐一審核並同意四份檔案。"],
   preview_changed: ["The export changed. Generate and review it again.", "匯出內容已變更，請重新產生和審核。"],
+  context_review_incomplete: ["Review four contextual re-identification categories before approving.", "請先完成四項情境重新識別風險檢查。"],
   relative_date_required: ["Relative dates are required.", "必須使用相對日期。"],
   known_values_required: ["Enter sensitive names or phrases to protect.", "請輸入須保護的敏感名字或詞句。"],
   empty_selection: ["All messages were omitted.", "所有訊息均已排除。"],
@@ -68,6 +71,7 @@ export function StrictSharePreviewLauncher() {
   const [fileIndex, setFileIndex] = useState(0);
   const [reviewedFiles, setReviewedFiles] = useState<string[]>([]);
   const [riskAccepted, setRiskAccepted] = useState(false);
+  const [reviewedContext, setReviewedContext] = useState<StrictContextReviewCategory[]>([]);
   const [approvalEnabled, setApprovalEnabled] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -82,7 +86,8 @@ export function StrictSharePreviewLauncher() {
   const allReviewed = Boolean(validPreview &&
     validPreview.files.length === 4 &&
     validPreview.files.every((file) => reviewedFiles.includes(file.name)));
-  const canDownload = allReviewed && approvalEnabled && riskAccepted;
+  const contextComplete = STRICT_CONTEXT_REVIEW_CATEGORIES.every((category) => reviewedContext.includes(category));
+  const canDownload = allReviewed && approvalEnabled && riskAccepted && contextComplete;
 
   if (!board || board.kind === "default" || board.messages.length === 0) return null;
 
@@ -97,6 +102,8 @@ export function StrictSharePreviewLauncher() {
     segment: "遮蔽這一句", generate: "產生四份本機預覽",
     files: "逐一審核每份完整檔案", reviewed: "我已檢查這份檔案的全部內容",
     risk: "我理解仍有姓名變體、罕見事件、關係及其他重新識別風險；我已手動審核四份檔案。",
+    contextTitle: "跨訊息身分線索：逐項檢查後才可同意",
+    contextLabels: ["學校、工作、組織、精確地點", "罕見經歷、獎項、獨特事件", "家庭、健康、親密關係等敏感情境", "跨訊息結合、時間、行程與回覆間隔"],
     authorize: "明確批准本機下載", download: "下載這份已審核檔案",
     confirmed: "可逐份下載。這並非完全匿名的保證，也不會直接送往 ChatGPT。",
     selected: "實際保留訊息", missing: "請先完成四份檔案的確認和風險同意。",
@@ -110,6 +117,8 @@ export function StrictSharePreviewLauncher() {
     segment: "Mask this sentence", generate: "Generate local preview of 4 files",
     files: "Review all four final files individually", reviewed: "I inspected this entire file",
     risk: "I understand names, rare events, relationships and combinations of clues may still identify people. I reviewed all four files manually.",
+    contextTitle: "Cross-message identity clues: inspect each category",
+    contextLabels: ["Schools, employers, affiliations, precise places", "Rare achievements, singular incidents, identifiable anecdotes", "Relationships, family, health, intimate context", "Combinations across messages, timeline, schedules and reply gaps"],
     authorize: "Explicitly authorize local downloads", download: "Download this reviewed file",
     confirmed: "You may download each reviewed file. This is not an anonymity guarantee and does not send anything to ChatGPT.",
     selected: "Messages kept", missing: "Review every file and acknowledge the residual risks first.",
@@ -119,6 +128,7 @@ export function StrictSharePreviewLauncher() {
     setPreview(null);
     setReviewedFiles([]);
     setRiskAccepted(false);
+    setReviewedContext([]);
     setApprovalEnabled(false);
     setError(null);
   }
@@ -169,13 +179,13 @@ export function StrictSharePreviewLauncher() {
       preparedMessages(), activePrivacyMappings,
       { dateMode: { mode: "relative_day" },
         knownSensitiveValues: sensitiveValues(), confirmedHumanReview: true },
-      validPreview.files, reviewedFiles,
+      validPreview.files, reviewedFiles, reviewedContext,
     );
   }
 
   function authorize() {
     setError(null);
-    if (!allReviewed || !riskAccepted) {
+    if (!allReviewed || !riskAccepted || !contextComplete) {
       setError(copy.missing);
       return;
     }
@@ -313,12 +323,26 @@ export function StrictSharePreviewLauncher() {
                       }} />
                     {copy.reviewed}
                   </label>
+                  <fieldset className="space-y-2 border-t border-card-border pt-3">
+                    <legend className="text-xs font-semibold">{copy.contextTitle}</legend>
+                    {STRICT_CONTEXT_REVIEW_CATEGORIES.map((category, index) => (
+                      <label key={category} className="flex items-start gap-2 text-xs">
+                        <input type="checkbox" checked={reviewedContext.includes(category)}
+                          onChange={(event) => {
+                            setReviewedContext((current) => event.target.checked
+                              ? [...current, category] : current.filter((item) => item !== category));
+                            setApprovalEnabled(false);
+                          }} />
+                        <span>{copy.contextLabels[index]}</span>
+                      </label>
+                    ))}
+                  </fieldset>
                   <label className="flex items-start gap-2 border-t border-card-border pt-2 text-xs leading-5">
                     <input type="checkbox" checked={riskAccepted}
                       onChange={(event) => { setRiskAccepted(event.target.checked); setApprovalEnabled(false); }} />
                     {copy.risk}
                   </label>
-                  <button type="button" disabled={!allReviewed || !riskAccepted || approvalEnabled}
+                  <button type="button" disabled={!allReviewed || !riskAccepted || !contextComplete || approvalEnabled}
                     onClick={authorize}
                     className="rounded-lg bg-accent-deep px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">{copy.authorize}</button>
                   {canDownload ? (
