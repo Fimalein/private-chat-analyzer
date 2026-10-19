@@ -73,7 +73,7 @@ describe("strict sharing serialized leak matrix (SYNTHETIC_FIXTURE)", () => {
   });
 
   it("scans decoded JSON strings for structured identifiers", () => {
-    const escaped = JSON.stringify({ contact: "合成メール@example.test" });
+    const escaped = JSON.stringify({ contact: "synthetic.alias@example.test" });
     blocked(() => inspectStrictSerializedFiles([
       syntheticFile("chat_redacted.jsonl", "application/x-ndjson", escaped + "\n"),
     ], ["irrelevant-local-secret"]), "serialized_structured_pii");
