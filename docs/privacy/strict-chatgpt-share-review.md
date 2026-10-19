@@ -28,7 +28,9 @@ To reduce social re-identification risk, the local strict-share UI now requires 
 
 A newly fabricated regression set deliberately combines a fictional recurring schedule with a fictional unusual achievement. Those clues **can remain in a pack that passes all structured automated scanning**. The test asserts that final approval is refused unless *all four* contextual categories have been explicitly reviewed; it also demonstrates that checking boxes does not actually remove linkable clues. Users should omit or generalize rare details and choose much smaller subsets when possible.
 
-[Verified GitHub Actions run](https://github.com/Fimalein/private-chat-analyzer/actions/runs/39243988130): **137/137 tests in 16 test files passed**, production build passed, and the separate dependency audit passed. These tests contain no real conversations.
+A deeper **nested JSON string containing Unicode escapes** initially bypassed the detector: [failing regression run](https://github.com/Fimalein/private-chat-analyzer/actions/runs/39244261059) (138/139 tests passed). The inspector now recursively parses JSON-as-text to a bounded depth, then performs the same encoded-value inspections; the regression remains mandatory.
+
+[Final verified run](https://github.com/Fimalein/private-chat-analyzer/actions/runs/39244450688): **139/139 tests in 16 test files passed**, production build passed, and the separate dependency audit passed. All cases were fabricated. Passing a finite synthetic suite is **not** proof of anonymity.
 
 **Open security limitations:** the encoded-value checks are finite and input-length bounded; names never listed or recognized remain invisible. False positives are possible, especially for one-character denylist items or common encoded substrings. Manual cross-message review, participant privacy, independent novel leak corpora, UI/browser e2e testing, mobile/network inspection and outside security review remain necessary. Do not represent the results as guaranteed anonymity or general permission to upload private transcripts.
 
