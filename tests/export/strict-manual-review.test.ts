@@ -6,6 +6,7 @@ import {
 } from "@/lib/export/strict-manual-masking";
 import {
   approveStrictChatGptSharePack,
+  STRICT_CONTEXT_REVIEW_CATEGORIES,
   previewStrictChatGptSharePack,
   StrictShareBlockedError,
 } from "@/lib/export/strict-chatgpt-share";
@@ -122,7 +123,7 @@ describe("synthetic local manual sentence masking", () => {
     );
     expectBlock(() => approveStrictChatGptSharePack(
       SYNTHETIC_EXPORT_MESSAGES, SYNTHETIC_EXPORT_MAPPINGS,
-      { ...options, confirmedHumanReview: true }, pack.files, reviewed.slice(0, 3),
+      { ...options, confirmedHumanReview: true }, pack.files, reviewed.slice(0, 3), STRICT_CONTEXT_REVIEW_CATEGORIES,
     ), "file_review_incomplete");
   });
 
@@ -132,7 +133,7 @@ describe("synthetic local manual sentence masking", () => {
     );
     const approved = approveStrictChatGptSharePack(
       SYNTHETIC_EXPORT_MESSAGES, SYNTHETIC_EXPORT_MAPPINGS,
-      { ...options, confirmedHumanReview: true }, before.files, reviewed,
+      { ...options, confirmedHumanReview: true }, before.files, reviewed, STRICT_CONTEXT_REVIEW_CATEGORIES,
     );
     expect(approved.files).toEqual(before.files);
 
@@ -142,13 +143,13 @@ describe("synthetic local manual sentence masking", () => {
     }];
     expectBlock(() => approveStrictChatGptSharePack(
       newMessage, SYNTHETIC_EXPORT_MAPPINGS,
-      { ...options, confirmedHumanReview: true }, before.files, reviewed,
+      { ...options, confirmedHumanReview: true }, before.files, reviewed, STRICT_CONTEXT_REVIEW_CATEGORIES,
     ), "preview_changed");
 
     expectBlock(() => approveStrictChatGptSharePack(
       SYNTHETIC_EXPORT_MESSAGES, SYNTHETIC_EXPORT_MAPPINGS,
       { ...options, dateMode: { mode: "shift_weeks", weeks: 3 },
-        confirmedHumanReview: true }, before.files, reviewed,
+        confirmedHumanReview: true }, before.files, reviewed, STRICT_CONTEXT_REVIEW_CATEGORIES,
     ), "serialized_structured_pii"); // shifted mode also serializes numeric epoch timestampMs;
                                   // strict post-serialization scan blocks it before snapshot comparison.
 
@@ -156,7 +157,7 @@ describe("synthetic local manual sentence masking", () => {
     altered[1].content += " extra";
     expectBlock(() => approveStrictChatGptSharePack(
       SYNTHETIC_EXPORT_MESSAGES, SYNTHETIC_EXPORT_MAPPINGS,
-      { ...options, confirmedHumanReview: true }, altered, reviewed,
+      { ...options, confirmedHumanReview: true }, altered, reviewed, STRICT_CONTEXT_REVIEW_CATEGORIES,
     ), "preview_changed");
   });
 
