@@ -72,6 +72,61 @@ function decodedStrings(value: unknown): string[] {
   return [];
 }
 
+// Best-effort bounded decoding is for *detecting* leaks, never for output.
+// If a potential encoded string cannot be safely inspected, block rather than
+// claiming a successful inspection. This does not cover arbitrary ciphers.
+const MAX_INSPECTION_CHARS = 8_000_000;
+const HEX_ESCAPE = /\\u([0-9a-fA-F]{4})/g;
+const HTML_CHAR_REF = /&#(?:x([0-9a-fA-F]{1,6})|([0-9]{1,7}));/gi;
+const HTML_NAMED = /&(amp|lt|gt|quot|apos|commat|period|sol|colon|num);/gi;
+const NAMED_CHAR: Record<string, string> = {
+  amp: "&", lt: "<", gt: ">", quot: '"', apos: "'",
+  commat: "@", period: ".", sol: "/", colon: ":", num: "#",
+};
+
+function decodeHtmlReferences(value: string): string {
+  return value.replace(HTML_CHAR_REF, (match, hex: string | undefined, decimal: string | undefined) => {
+    const point = Number.parseInt(hex ?? decimal, hex ? 16 : 10);
+    return Number.isInteger(point) && point > 0 && point <= 0x10ffff &&
+      !(point >= 0xd800 && point <= 0xdfff) ? String.fromCodePoint(point) : match;
+  }).replace(HTML_NAMED, (_, name: string) => NAMED_CHAR[name.toLowerCase()] ?? "&" + name + ";");
+}
+
+function encodedInspectionVariants(value: string): string[] {
+  const seen = new Set<string>([normalizeForInspection(value)]);
+  for (let pass = 0; pass < 3; pass += 1) {
+    for (const input of [...seen]) {
+      const candidates: string[] = [
+        input.replace(HEX_ESCAPE, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16))),
+        decodeHtmlReferences(input),
+      ];
+      if (/%[0-9a-f]{2}/i.test(input)) {
+        try { candidates.push(decodeURIComponent(input)); } catch {
+          // Decode URI-encoded runs embedded in otherwise ordinary prose.
+          candidates.push(input.replace(/(?:%[0-9a-fA-F]{2})+/g, (run) => {
+            try { return decodeURIComponent(run); } catch { return run; }
+          }));
+        }
+      }
+      for (const candidate of candidates) {
+        const normalized = normalizeForInspection(candidate);
+        if (normalized.length > MAX_INSPECTION_CHARS) {
+          throw new StrictShareBlockedError("invalid_serialized_artifact");
+        }
+        seen.add(normalized);
+      }
+    }
+  }
+  return [...seen];
+}
+
+function base64Utf8(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
 /** Inspect BOTH literal bytes and decoded serialized string values. */
 export function inspectStrictSerializedFiles(
   files: readonly ChatGptExportFile[],
@@ -79,7 +134,12 @@ export function inspectStrictSerializedFiles(
 ): void {
   const sensitive = [...new Set(sensitiveValues.map(normalizeForInspection))]
     .filter((value) => value.length >= 1);
+  const encodedSensitive = sensitive.filter((value) => value.length >= 4)
+    .map(base64Utf8);
   for (const file of files) {
+    if (file.content.length > MAX_INSPECTION_CHARS) {
+      throw new StrictShareBlockedError("invalid_serialized_artifact");
+    }
     let strings = [file.content];
     try {
       if (file.type === "application/json") {
@@ -95,12 +155,14 @@ export function inspectStrictSerializedFiles(
       throw new StrictShareBlockedError("invalid_serialized_artifact");
     }
     for (const string of strings) {
-      const normalized = normalizeForInspection(string);
-      if (scanStructuredPiiText(normalized).length > 0) {
-        throw new StrictShareBlockedError("serialized_structured_pii");
-      }
-      if (sensitive.some((value) => normalized.includes(value))) {
-        throw new StrictShareBlockedError("known_sensitive_value_survived");
+      for (const normalized of encodedInspectionVariants(string)) {
+        if (scanStructuredPiiText(normalized).length > 0) {
+          throw new StrictShareBlockedError("serialized_structured_pii");
+        }
+        if (sensitive.some((value) => normalized.includes(value)) ||
+            encodedSensitive.some((value) => normalized.includes(value))) {
+          throw new StrictShareBlockedError("known_sensitive_value_survived");
+        }
       }
     }
   }
