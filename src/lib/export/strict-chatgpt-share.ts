@@ -24,6 +24,7 @@ export type StrictShareOptions = StrictSharePreviewOptions & {
 
 export type StrictShareBlockedReason =
   | "manual_review_required"
+  | "context_review_incomplete"
   | "file_review_incomplete"
   | "preview_changed"
   | "relative_date_required"
@@ -232,6 +233,13 @@ export function buildStrictChatGptSharePack(
   return inspectPack(rawMessages, mappings, options);
 }
 
+export const STRICT_CONTEXT_REVIEW_CATEGORIES = [
+  "places_education_work",
+  "rare_events",
+  "relationships_sensitive_context",
+  "cross_message_timing_linkage",
+] as const;
+export type StrictContextReviewCategory = typeof STRICT_CONTEXT_REVIEW_CATEGORIES[number];
 /**
  * A release decision is bound to the exact files displayed to the reviewer.
  * Any change in messages, sentence masking, mapping, denylist, or dates must
@@ -245,7 +253,13 @@ export function approveStrictChatGptSharePack(
   options: StrictShareOptions,
   previewFiles: readonly ChatGptExportFile[],
   reviewedFileNames: readonly string[],
+  reviewedContextCategories: readonly StrictContextReviewCategory[] = [],
 ): ChatGptExportPack {
+  if (!STRICT_CONTEXT_REVIEW_CATEGORIES.every((category) =>
+    reviewedContextCategories.includes(category)
+  )) {
+    throw new StrictShareBlockedError("context_review_incomplete");
+  }
   const expected = [
     "chat_redacted.txt",
     "chat_redacted.jsonl",
