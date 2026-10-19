@@ -57,9 +57,9 @@ function sourceSensitiveValues(
 ) {
   const values = [...known, ...mappings.map((mapping) => mapping.source)];
   return [...new Set(
-    values.filter((value) => typeof value === "string" && value.trim().length >= 2)
+    values.filter((value) => typeof value === "string" && value.trim().length >= 1)
       .map(normalizeForInspection)
-      .filter((value) => value.trim().length >= 2),
+      .filter((value) => value.trim().length >= 1),
   )];
 }
 
@@ -78,7 +78,7 @@ export function inspectStrictSerializedFiles(
   sensitiveValues: readonly string[],
 ): void {
   const sensitive = [...new Set(sensitiveValues.map(normalizeForInspection))]
-    .filter((value) => value.length >= 2);
+    .filter((value) => value.length >= 1);
   for (const file of files) {
     let strings = [file.content];
     try {
@@ -117,7 +117,7 @@ function inspectPack(
   if (!rawMessages.length) {
     throw new StrictShareBlockedError("empty_selection");
   }
-  if (!options.knownSensitiveValues?.some((value) => typeof value === "string" && value.trim().length >= 2)) {
+  if (!options.knownSensitiveValues?.some((value) => typeof value === "string" && value.trim().length >= 1)) {
     throw new StrictShareBlockedError("known_values_required");
   }
 
