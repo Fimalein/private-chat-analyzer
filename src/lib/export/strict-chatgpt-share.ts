@@ -27,6 +27,7 @@ export type StrictShareBlockedReason =
   | "relative_date_required"
   | "known_values_required"
   | "empty_selection"
+  | "unmasked_participant"
   | "unresolved_structured_pii"
   | "invalid_serialized_artifact"
   | "serialized_structured_pii"
@@ -119,6 +120,17 @@ function inspectPack(
   }
 
   const prepared = prepareExportMessages(rawMessages, mappings);
+  const preparedById = new Map(prepared.map((message) => [message.id, message]));
+  for (const raw of rawMessages) {
+    const safe = preparedById.get(raw.id);
+    // Sender information is repeated across every exported message and index.
+    // Treat unchanged imported participant names or IDs as a hard blocker,
+    // even if the structured scanner finds no obvious phone/email/address.
+    if (!safe || !raw.senderName.trim() || !raw.senderId.trim() ||
+        safe.senderName === raw.senderName || safe.senderId === raw.senderId) {
+      throw new StrictShareBlockedError("unmasked_participant");
+    }
+  }
   if (auditPreparedExport(prepared).detections.length > 0) {
     throw new StrictShareBlockedError("unresolved_structured_pii");
   }
