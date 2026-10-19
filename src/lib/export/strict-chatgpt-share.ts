@@ -87,7 +87,7 @@ const NAMED_CHAR: Record<string, string> = {
 
 function decodeHtmlReferences(value: string): string {
   return value.replace(HTML_CHAR_REF, (match, hex: string | undefined, decimal: string | undefined) => {
-    const point = Number.parseInt(hex ?? decimal, hex ? 16 : 10);
+    const point = Number.parseInt(hex ?? decimal ?? "0", hex ? 16 : 10);
     return Number.isInteger(point) && point > 0 && point <= 0x10ffff &&
       !(point >= 0xd800 && point <= 0xdfff) ? String.fromCodePoint(point) : match;
   }).replace(HTML_NAMED, (_, name: string) => NAMED_CHAR[name.toLowerCase()] ?? "&" + name + ";");
