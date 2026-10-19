@@ -20,6 +20,14 @@ describe("encoded-output privacy regression (fabricated)", () => {
   it("blocks escaped JSON inside a JSON string", () => blocked(JSON.stringify({
     nested: JSON.stringify({ details: privateWord }),
   }), "application/json"));
+  it("blocks percent-encoded HTML character references", () => blocked(encodeURIComponent(
+    Array.from(privateWord).map((c) => "&#" + c.codePointAt(0) + ";").join(""),
+  )));
+  it("blocks nested JSON text with escaped Unicode source characters", () => {
+    const escaped = Array.from(privateWord).map((c) =>
+      "\\u" + c.charCodeAt(0).toString(16).padStart(4, "0")).join("");
+    blocked(JSON.stringify({ nested: JSON.stringify({ label: escaped }) }), "application/json");
+  });
   it("blocks UTF-8 base64 of known names", () => {
     const bytes = new TextEncoder().encode(privateWord);
     const base64 = btoa(Array.from(bytes, (b) => String.fromCharCode(b)).join(""));
