@@ -50,7 +50,14 @@ export function StrictSharePreviewLauncher() {
 
   const validPreview =
     preview?.messages === board.messages &&
-    preview.mappings === activePrivacyMappings &&
+    preview.mappings.length === activePrivacyMappings.length &&
+    preview.mappings.every((mapping, index) => {
+      const current = activePrivacyMappings[index];
+      return Boolean(current &&
+        mapping.source === current.source &&
+        mapping.replacement === current.replacement &&
+        mapping.kind === current.kind);
+    }) &&
     preview.limit === limit &&
     preview.secrets === sensitiveText ? preview : null;
 
