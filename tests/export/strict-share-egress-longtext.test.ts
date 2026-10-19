@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { approveStrictChatGptSharePack, inspectStrictSerializedFiles, previewStrictChatGptSharePack, StrictShareBlockedError } from "@/lib/export/strict-chatgpt-share";
+import { approveStrictChatGptSharePack, STRICT_CONTEXT_REVIEW_CATEGORIES, inspectStrictSerializedFiles, previewStrictChatGptSharePack, StrictShareBlockedError } from "@/lib/export/strict-chatgpt-share";
 import { SYNTHETIC_EXPORT_MESSAGES, SYNTHETIC_EXPORT_MAPPINGS, SYNTHETIC_EXPORT_RAW_VALUES } from "../fixtures/synthetic/export-leak-regression";
 import type { ChatGptExportFile } from "@/lib/export/chatgpt-pack";
 
@@ -39,7 +39,7 @@ describe("strict synthetic serialized output regression", () => {
     expect(() => approveStrictChatGptSharePack(
       updated, SYNTHETIC_EXPORT_MAPPINGS,
       { ...options, confirmedHumanReview: true },
-      preview.files, preview.files.map((file) => file.name),
+      preview.files, preview.files.map((file) => file.name), STRICT_CONTEXT_REVIEW_CATEGORIES,
     )).toThrow(StrictShareBlockedError);
   });
   it("requires the reviewer to confirm every exported file", () => {
@@ -48,7 +48,7 @@ describe("strict synthetic serialized output regression", () => {
     expect(() => approveStrictChatGptSharePack(
       SYNTHETIC_EXPORT_MESSAGES, SYNTHETIC_EXPORT_MAPPINGS,
       { ...options, confirmedHumanReview: true },
-      preview.files, preview.files.slice(0, 3).map((file) => file.name),
+      preview.files, preview.files.slice(0, 3).map((file) => file.name), STRICT_CONTEXT_REVIEW_CATEGORIES,
     )).toThrow(StrictShareBlockedError);
   });
   it("passes a short fabricated pseudonym-only text", () => {
