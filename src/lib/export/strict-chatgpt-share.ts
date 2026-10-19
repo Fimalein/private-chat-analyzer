@@ -4,30 +4,31 @@ import {
   buildChatGptExportPack,
   prepareExportMessages,
   type ChatGptExportDateMode,
+  type ChatGptExportFile,
   type ChatGptExportPack,
 } from "@/lib/export/chatgpt-pack";
 import { scanStructuredPiiText, type EntityMapping } from "@/lib/privacy";
 
 /**
- * An opt-in, fail-closed *structured* sharing preflight, not an anonymity proof.
- * It is not yet exposed in the UI and must not replace manual contextual review.
+ * Opt-in local preflight, NOT an anonymity guarantee. Never send source
+ * mappings, denylist entries, or messages to a server.
  */
-export type StrictShareOptions = {
+export type StrictSharePreviewOptions = {
   dateMode: Exclude<ChatGptExportDateMode, { mode: "exact" }>;
-  confirmedHumanReview: true;
-  /**
-   * Locally supplied exact strings that must not occur in exported artifacts.
-   * Include name variants, aliases, schools, places and other distinctive text.
-   * Never write this list into export files or telemetry.
-   */
   knownSensitiveValues: readonly string[];
+};
+
+export type StrictShareOptions = StrictSharePreviewOptions & {
+  confirmedHumanReview: true;
 };
 
 export type StrictShareBlockedReason =
   | "manual_review_required"
   | "relative_date_required"
   | "known_values_required"
+  | "empty_selection"
   | "unresolved_structured_pii"
+  | "invalid_serialized_artifact"
   | "serialized_structured_pii"
   | "known_sensitive_value_survived";
 
@@ -38,23 +39,111 @@ export class StrictShareBlockedError extends Error {
     super("STRICT_CHATGPT_SHARE_BLOCKED");
     this.name = "StrictShareBlockedError";
     this.reason = reason;
-    // Intentionally do not serialize matching source values into exceptions.
+    // Never serialize a matching original value into an error.
   }
 }
 
-function nonemptySensitiveValues(
+function normalizeForInspection(value: string) {
+  // Zero-width formatting controls must not be a trivial denylist bypass.
+  return value.normalize("NFKC").replace(/[\u200b-\u200d\u2060\ufeff]/g, "");
+}
+
+function sourceSensitiveValues(
   known: readonly string[],
   mappings: readonly EntityMapping[],
 ) {
-  return [...new Set([...known, ...mappings.map((mapping) => mapping.source)])]
-    .filter((value) => typeof value === "string" && value.trim().length >= 2)
-    .map((value) => value.normalize("NFKC"));
+  const values = [...known, ...mappings.map((mapping) => mapping.source)];
+  return [...new Set(
+    values.filter((value) => typeof value === "string" && value.trim().length >= 2)
+      .map(normalizeForInspection)
+      .filter((value) => value.trim().length >= 2),
+  )];
+}
+
+function decodedStrings(value: unknown): string[] {
+  if (typeof value === "string") return [value];
+  if (Array.isArray(value)) return value.flatMap(decodedStrings);
+  if (value !== null && typeof value === "object") {
+    return Object.entries(value).flatMap(([key, child]) => [key, ...decodedStrings(child)]);
+  }
+  return [];
+}
+
+/** Inspect BOTH literal bytes and decoded serialized string values. */
+export function inspectStrictSerializedFiles(
+  files: readonly ChatGptExportFile[],
+  sensitiveValues: readonly string[],
+): void {
+  const sensitive = [...new Set(sensitiveValues.map(normalizeForInspection))]
+    .filter((value) => value.length >= 2);
+  for (const file of files) {
+    let strings = [file.content];
+    try {
+      if (file.type === "application/json") {
+        strings = [file.content, ...decodedStrings(JSON.parse(file.content))];
+      } else if (file.type === "application/x-ndjson") {
+        const records = file.content.split(/\r?\n/).filter((line) => line.trim());
+        strings = [file.content, ...records.flatMap((record) => decodedStrings(JSON.parse(record)))];
+      } else if (file.type !== "text/plain") {
+        throw new StrictShareBlockedError("invalid_serialized_artifact");
+      }
+    } catch (error) {
+      if (error instanceof StrictShareBlockedError) throw error;
+      throw new StrictShareBlockedError("invalid_serialized_artifact");
+    }
+    for (const string of strings) {
+      const normalized = normalizeForInspection(string);
+      if (scanStructuredPiiText(normalized).length > 0) {
+        throw new StrictShareBlockedError("serialized_structured_pii");
+      }
+      if (sensitive.some((value) => normalized.includes(value))) {
+        throw new StrictShareBlockedError("known_sensitive_value_survived");
+      }
+    }
+  }
+}
+
+function inspectPack(
+  rawMessages: readonly ChatMessage[],
+  mappings: readonly EntityMapping[],
+  options: StrictSharePreviewOptions,
+): ChatGptExportPack {
+  if (!options?.dateMode || !["shift_weeks", "relative_day"].includes(options.dateMode.mode)) {
+    throw new StrictShareBlockedError("relative_date_required");
+  }
+  if (!rawMessages.length) {
+    throw new StrictShareBlockedError("empty_selection");
+  }
+  if (!options.knownSensitiveValues?.some((value) => typeof value === "string" && value.trim().length >= 2)) {
+    throw new StrictShareBlockedError("known_values_required");
+  }
+
+  const prepared = prepareExportMessages(rawMessages, mappings);
+  if (auditPreparedExport(prepared).detections.length > 0) {
+    throw new StrictShareBlockedError("unresolved_structured_pii");
+  }
+  const pack = buildChatGptExportPack(rawMessages, mappings, {
+    dateMode: options.dateMode,
+  });
+  inspectStrictSerializedFiles(pack.files, sourceSensitiveValues(options.knownSensitiveValues, mappings));
+  return pack;
 }
 
 /**
- * A limited defensive building block for a future strictly reviewed share flow.
- * Does not inspect arbitrary freeform names or quasi-identifying contexts.
- * The caller must ensure meaningful, informed, human review and minimization.
+ * Local-only preview. Caller MUST NOT share/download its output. Every file
+ * needs a subsequent human check and fresh preflight before any transfer.
+ */
+export function previewStrictChatGptSharePack(
+  rawMessages: readonly ChatMessage[],
+  mappings: readonly EntityMapping[],
+  options: StrictSharePreviewOptions,
+): ChatGptExportPack {
+  return inspectPack(rawMessages, mappings, options);
+}
+
+/**
+ * Final strict API requires an explicit user review decision. A boolean is not
+ * cryptographic proof; caller must show the COMPLETE files for human review.
  */
 export function buildStrictChatGptSharePack(
   rawMessages: readonly ChatMessage[],
@@ -64,35 +153,16 @@ export function buildStrictChatGptSharePack(
   if (options?.confirmedHumanReview !== true) {
     throw new StrictShareBlockedError("manual_review_required");
   }
-  if (!options.dateMode || !["shift_weeks", "relative_day"].includes(options.dateMode.mode)) {
-    throw new StrictShareBlockedError("relative_date_required");
-  }
-  if (!options.knownSensitiveValues?.some((value) => value.trim().length >= 2)) {
-    throw new StrictShareBlockedError("known_values_required");
-  }
+  return inspectPack(rawMessages, mappings, options);
+}
 
-  const prepared = prepareExportMessages(rawMessages, mappings);
-  const audit = auditPreparedExport(prepared);
-  if (audit.detections.length > 0) {
-    // Unlike the legacy export, strict preflight blocks medium as well as high.
-    throw new StrictShareBlockedError("unresolved_structured_pii");
-  }
-
-  const pack = buildChatGptExportPack(rawMessages, mappings, {
-    dateMode: options.dateMode,
-  });
-  const sensitiveValues = nonemptySensitiveValues(options.knownSensitiveValues, mappings);
-
-  // Check *serialized* output, not only transformed messages. This includes
-  // JSONL, the analysis index, and instructions, where metadata might survive.
-  for (const file of pack.files) {
-    if (scanStructuredPiiText(file.content).length > 0) {
-      throw new StrictShareBlockedError("serialized_structured_pii");
-    }
-    const serializedNormalized = file.content.normalize("NFKC");
-    if (sensitiveValues.some((value) => serializedNormalized.includes(value))) {
-      throw new StrictShareBlockedError("known_sensitive_value_survived");
-    }
-  }
-  return pack;
+/** Explicit minimization: only a bounded trailing subset, never all by default. */
+export function selectRecentStrictShareMessages(
+  messages: readonly ChatMessage[],
+  limit: 25 | 50 | 100,
+): ChatMessage[] {
+  if (![25, 50, 100].includes(limit)) throw new RangeError("invalid strict selection");
+  return [...messages].sort(
+    (a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id),
+  ).slice(-limit);
 }
