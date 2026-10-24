@@ -6,6 +6,7 @@ import {
   type ChatGptExportDateMode,
 } from "@/lib/export/chatgpt-pack";
 import type { EntityMapping } from "@/lib/privacy";
+import { SecretExportBlockedError } from "@/lib/privacy/secret-guard";
 import {
   SYNTHETIC_EXPORT_MAPPINGS,
   SYNTHETIC_EXPORT_MESSAGES,
@@ -258,19 +259,8 @@ describe("buildChatGptExportPack", () => {
       (mapping) => mapping.source !== SYNTHETIC_EXPORT_SENSITIVE.secret,
     );
 
-    try {
-      buildChatGptExportPack(SYNTHETIC_EXPORT_MESSAGES, mappingsWithoutCredential);
-      throw new Error("expected export to be blocked for surviving synthetic secret");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ExportBlockedError);
-      const blocked = error as ExportBlockedError;
-      expect(
-        blocked.detections.some(
-          (detection) =>
-            detection.kind === "credential" &&
-            detection.value === SYNTHETIC_EXPORT_SENSITIVE.secret,
-        ),
-      ).toBe(true);
-    }
+    expect(() => buildChatGptExportPack(
+      SYNTHETIC_EXPORT_MESSAGES, mappingsWithoutCredential,
+    )).toThrow(SecretExportBlockedError);
   });
 });

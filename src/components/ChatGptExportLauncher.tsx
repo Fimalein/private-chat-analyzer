@@ -11,6 +11,7 @@ import {
   type ChatGptExportDateMode,
   type ChatGptExportFile,
 } from "@/lib/export/chatgpt-pack";
+import { auditUnmaskedSecrets, SecretExportBlockedError } from "@/lib/privacy/secret-guard";
 
 function downloadFile(file: ChatGptExportFile) {
   const blob = new Blob([file.content], { type: `${file.type};charset=utf-8` });
@@ -53,6 +54,11 @@ export function ChatGptExportLauncher() {
     [active, activePrivacyMappings],
   );
   const audit = useMemo(() => auditPreparedExport(prepared), [prepared]);
+  const secretAudit = useMemo(() => {
+    if (!active || active.kind === "default") return { unmasked: 0 };
+    try { return auditUnmaskedSecrets(active.messages, prepared); }
+    catch { return { unmasked: 1 }; } // Fail closed on oversized/uninspectable input.
+  }, [active, prepared]);
 
   if (!active || active.kind === "default" || active.messages.length === 0) return null;
   const activeMessages = active.messages;
@@ -77,6 +83,7 @@ export function ChatGptExportLauncher() {
           local: "The pack is generated locally in this browser.",
           close: "Close",
           high: "High-risk identifiers remaining",
+          secrets: "Authentication secrets remain: remove or mask them locally before sharing. This block cannot be overridden.",
           medium: "Medium-risk identifiers remaining",
           blocked:
             "Export is blocked until high-risk identifiers are pseudonymized or redacted in Privacy review.",
@@ -121,6 +128,7 @@ export function ChatGptExportLauncher() {
           local: "套件只在此瀏覽器內產生。",
           close: "關閉",
           high: "仍有高風險識別資訊",
+          secrets: "仍有認證秘密資料，請先在本機刪除或遮蔽。這項限制不可略過。",
           medium: "仍有中風險識別資訊",
           blocked: "高風險資訊完成假名化或遮蔽前，匯出會被阻止。請先使用隱私檢查。",
           warning: "中風險項目不會阻止匯出；若 URL、IP、郵遞區號或長 ID 可能識別個人，請先檢查。",
@@ -179,16 +187,20 @@ export function ChatGptExportLauncher() {
         setStatus("idle");
         return;
       }
+      if (error instanceof SecretExportBlockedError) {
+        setStatus("error");
+        return;
+      }
       if (error instanceof ExportBlockedError) {
         setStatus("idle");
         return;
       }
-      console.error("[ChatGptExportLauncher] export failed", error);
       setStatus("error");
     }
   }
 
   const highCount = audit.highRisk.length;
+  const secretCount = secretAudit.unmasked;
   const mediumCount = audit.mediumRisk.length;
 
   return (
@@ -250,8 +262,8 @@ export function ChatGptExportLauncher() {
               </div>
             </div>
 
-            <p className={`mt-3 rounded-xl p-3 text-sm leading-6 ${highCount > 0 ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>
-              {highCount > 0 ? text.blocked : text.ready}
+            <p className={`mt-3 rounded-xl p-3 text-sm leading-6 ${highCount > 0 || secretCount > 0 ? "bg-rose-50 text-rose-800" : "bg-emerald-50 text-emerald-800"}`}>
+              {secretCount > 0 ? text.secrets : highCount > 0 ? text.blocked : text.ready}
             </p>
             {mediumCount > 0 ? (
               <p className="mt-2 rounded-xl bg-amber-50 p-3 text-xs leading-5 text-amber-900">
@@ -387,7 +399,7 @@ export function ChatGptExportLauncher() {
               ) : null}
               <button
                 type="button"
-                disabled={highCount > 0 || !shiftValid || !providerAcknowledged || status === "working"}
+                disabled={highCount > 0 || secretCount > 0 || !shiftValid || !providerAcknowledged || status === "working"}
                 onClick={exportPack}
                 className="rounded-full bg-accent-deep px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               >

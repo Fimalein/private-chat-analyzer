@@ -1,6 +1,6 @@
 import { attachReplyGaps, deriveReplyGaps } from "@/lib/analysis/reply-gaps";
 import type { ChatMessage } from "@/lib/chat-types";
-import { assertNoExportedSecrets } from "@/lib/privacy/secret-guard";
+import { assertNoExportedSecrets, auditUnmaskedSecrets, SecretExportBlockedError } from "@/lib/privacy/secret-guard";
 import {
   pseudonymizeMessages,
   scanStructuredPii,
@@ -297,6 +297,9 @@ export function buildChatGptExportPack(
 ): ChatGptExportPack {
   const dateMode = normalizeDateMode(options.dateMode);
   const messages = prepareExportMessages(rawMessages, mappings);
+  if (auditUnmaskedSecrets(rawMessages, messages).unmasked > 0) {
+    throw new SecretExportBlockedError();
+  }
   const audit = auditPreparedExport(messages);
 
   if (audit.highRisk.length > 0) {
