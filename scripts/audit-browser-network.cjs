@@ -92,6 +92,30 @@ const fixture = [
     await dialog.getByText("chat_redacted.txt", { exact: true }).waitFor();
     assert.equal(await dialog.getByRole("button", { name: /下載這份已審核檔案|Download this reviewed file/ }).count(),
       0, "No download should be exposed prior to review/approval");
+    // The ordinary export must also show the receiving-provider implications.
+    await dialog.getByRole("button", { name: /^(關閉|Close)$/ }).click();
+    await page.getByRole("button", { name: /ChatGPT 匯出|Export for ChatGPT/ }).click();
+    const shareButton = page.getByRole("button", {
+      name: /分享 \\/ 下載 4 個檔案|Share \\/ download 4 files/,
+    });
+    await shareButton.waitFor();
+    assert.equal(await shareButton.isDisabled(), true,
+      "Ordinary export must be disabled without provider disclosure acknowledgement");
+    const acknowledge = page.getByRole("checkbox", {
+      name: /我了解本機下載|I understand that downloading/,
+    });
+    await acknowledge.check();
+    assert.equal(await shareButton.isEnabled(), true,
+      "Explicit provider acknowledgement should unlock a non-secret export");
+    const provider = page.getByLabel(/預定收件方|Intended recipient/);
+    await provider.selectOption("other");
+    assert.equal(await shareButton.isDisabled(), true,
+      "Changing the intended recipient must invalidate acknowledgement");
+    await acknowledge.check();
+    assert.equal(await shareButton.isEnabled(), true,
+      "Recipient-specific re-acknowledgement must be possible");
+    // Never trigger native share or a download in this pre-handoff network test.
+
     assert.equal(leakedToNetwork.length, 0, "Synthetic content reached a network request");
     assert.equal(deniedExternal.length, 0, "An unexpected external network request was attempted");
     assert.equal(websockets.filter((kind) => kind !== "local").length, 0,
@@ -99,6 +123,7 @@ const fixture = [
     console.log(JSON.stringify({
       syntheticFixtureOnly: true,
       importAndStrictPreview: "passed",
+      ordinaryExportRecipientGate: "passed",
       localRequestCount: localRequests,
       attemptedExternalRequests: deniedExternal.length,
       outgoingCanaryRequests: leakedToNetwork.length,
