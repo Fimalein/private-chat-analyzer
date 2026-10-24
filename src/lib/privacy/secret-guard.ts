@@ -80,6 +80,15 @@ function findValues(text: string): string[] {
   collect(/\b(eyJ[A-Za-z0-9_-]{5,}\.eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{8,})\b/g);
   collect(/\b((?:gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|glpat-[A-Za-z0-9_-]{16,}|AKIA[0-9A-Z]{16}|ASIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{28,}|xox[baprs]-[A-Za-z0-9-]{12,}|sk-(?:proj-|live-)[A-Za-z0-9_-]{16,}))\b/g);
 
+  // Check the payload too: replacing only the envelope marker is insufficient.
+  const pemPayloads = /-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----([\s\S]*?)(?:-----END (?:[A-Z ]+ )?PRIVATE KEY-----|$)/g;
+  for (const block of text.matchAll(pemPayloads)) {
+    for (const line of block[1].split(/\r?\n/)) {
+      const payload = line.trim();
+      if (/^[A-Za-z0-9+/=]{12,}$/.test(payload)) values.push(payload);
+    }
+  }
+
   // Even an incomplete pasted PEM key is blocked pending manual redaction.
   collect(/(-----BEGIN (?:[A-Z ]+ )?PRIVATE KEY-----)/g);
   return values;
