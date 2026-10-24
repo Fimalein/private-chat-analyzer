@@ -102,6 +102,7 @@ export function StrictSharePreviewLauncher() {
   const copy = zh ? {
     launch: "ChatGPT 隱私預覽（實驗）", title: "手動遮蔽與分享前審核",
     close: "關閉", info: "僅於本機處理。未授權前不能下載，絕不會自動上傳或傳送到 ChatGPT。檢查通過不代表完全匿名。",
+    provider: "若你自行將檔案傳給 ChatGPT，OpenAI 就會收到內容。可先在資料控制中關閉模型改善用途，或選用臨時對話（可能為安全目的保留最長 30 天）。此工具無法核實你的帳戶設定；避免未審查的第三方外掛或動作。",
     selection: "單次審核的訊息數量（預設最少）", windowRange: "原始時間順序的範圍", older: "較早的訊息", newer: "較新的訊息", sensitivity: "須保護的名稱、暱稱、學校、地點及獨特事件（每行一項）",
     hint: "列表只留在此頁記憶體；未列出的敏感背景可能仍可識別。",
     mask: "逐句遮蔽／排除訊息（原文只在本機顯示）",
@@ -117,6 +118,7 @@ export function StrictSharePreviewLauncher() {
   } : {
     launch: "ChatGPT private review (experimental)", title: "Mask and review before sharing",
     close: "Close", info: "LOCAL ONLY. Files cannot be downloaded before approval. Nothing is automatically uploaded or sent to ChatGPT. Passing scans does not prove anonymity.",
+    provider: "If you manually upload a file to ChatGPT, OpenAI receives its contents. Before uploading, disable 'Improve the model for everyone' in Data Controls, or choose Temporary Chat (may be retained for up to 30 days). This tool cannot verify your account settings. Avoid unreviewed external GPT actions.",
     selection: "Messages per selected window (small by default)", windowRange: "Chronological messages", older: "Older window", newer: "Newer window", sensitivity: "Sensitive names, aliases, schools, places, unique events (one per line)",
     hint: "This list stays in this page's memory. Unlisted contextual clues may still be identifying.",
     mask: "Mask sentences / omit messages (raw text shown locally)",
@@ -241,6 +243,12 @@ export function StrictSharePreviewLauncher() {
               }}>{copy.close}</button>
             </div>
             <p className="mt-2 text-xs font-medium leading-5 text-rose-800">{copy.info}</p>
+            <p className="mt-2 text-xs leading-5 text-muted">
+              {copy.provider}{" "}
+              <a href="https://help.openai.com/en/articles/7730893-data-controls-in-chatgpt"
+                target="_blank" rel="noopener noreferrer"
+                className="underline">OpenAI Data Controls</a>
+            </p>
             <div className="mt-3 min-h-0 flex-1 space-y-3 overflow-y-auto">
               <label className="block text-xs font-semibold text-accent-deep">
                 {copy.selection}
