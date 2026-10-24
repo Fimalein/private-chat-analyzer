@@ -96,7 +96,7 @@ const fixture = [
     await dialog.getByRole("button", { name: /^(關閉|Close)$/ }).click();
     await page.getByRole("button", { name: /ChatGPT 匯出|Export for ChatGPT/ }).click();
     const shareButton = page.getByRole("button", {
-      name: /分享 \\/ 下載 4 個檔案|Share \\/ download 4 files/,
+      name: /下載 4 個檔案|download 4 files/,
     });
     await shareButton.waitFor();
     assert.equal(await shareButton.isDisabled(), true,
