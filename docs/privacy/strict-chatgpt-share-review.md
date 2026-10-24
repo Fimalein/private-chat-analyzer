@@ -2,6 +2,12 @@
 
 Status: **Draft PR #47; not merged, and not proof of anonymity**. The experimental NER in PR #45 is not used as a redaction gate.
 
+## Intended receiver, not public release
+
+The owner intends to submit an intentionally selected excerpt to a **chosen LLM provider**, not to publish private transcripts. Risk reduction here should focus on provider data handling (training, retention, account/service exposure and downstream tools), plus leaks before explicit consent. This **extra-strict** workflow remains an optional conservative profile; it should not become the sole way to perform useful conversation analysis or a claim of guaranteed anonymity. See [LLM provider disclosure threat model](llm-provider-disclosure-threat-model.md) and [#49](https://github.com/Fimalein/private-chat-analyzer/issues/49) for proportionate provider-aware handoff requirements.
+
+The temporary and training-off ChatGPT options do **not** mean content cannot be processed or retained by OpenAI: a Temporary Chat can be kept for up to 30 days for safety, and normal conversations remain in history until deleted. The application cannot inspect those ChatGPT settings. Do not conflate an explicit provider handoff with posting the text publicly. Contextual facts can be necessary for meaningful longitudinal analysis and should be reviewed proportionately rather than removed mechanically.
+
 ## Current local-only sequence
 
 1. Choose a **small, contiguous, purpose-specific excerpt** from the active imported conversation. The experimental UI starts with only the **latest 5 messages**, permits windows of **5, 10 or 25**, and lets the reviewer move backward/forward through earlier windows without exporting the surrounding history. Imported records are sorted chronologically for this view. Switching windows, changing their size, or changing the source invalidates the preview and every approval.
