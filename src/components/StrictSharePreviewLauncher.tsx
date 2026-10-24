@@ -8,7 +8,7 @@ import {
   STRICT_CONTEXT_REVIEW_CATEGORIES,
   type StrictContextReviewCategory,
   previewStrictChatGptSharePack,
-  selectRecentStrictShareMessages,
+  selectStrictShareWindowMessages,
   StrictShareBlockedError,
 } from "@/lib/export/strict-chatgpt-share";
 import {
@@ -64,7 +64,8 @@ export function StrictSharePreviewLauncher() {
   const { dashboards, activeId, activePrivacyMappings } = useChat();
   const { locale } = useLocale();
   const [open, setOpen] = useState(false);
-  const [limit, setLimit] = useState<25 | 50 | 100>(25);
+  const [limit, setLimit] = useState<5 | 10 | 25>(5);
+  const [windowOffset, setWindowOffset] = useState(0);
   const [sensitiveText, setSensitiveText] = useState("");
   const [edits, setEdits] = useState<StrictMessageEdits>({});
   const [preview, setPreview] = useState<Preview | null>(null);
@@ -76,11 +77,17 @@ export function StrictSharePreviewLauncher() {
   const [error, setError] = useState<string | null>(null);
 
   const board = dashboards.find((item) => item.id === activeId);
+  const messageCount = board?.messages.length ?? 0;
+  // Clamp on import changes; never silently broaden a reviewed window.
+  const effectiveOffset = messageCount > 0
+    ? Math.min(windowOffset, messageCount - 1) : 0;
   const source = board && board.kind !== "default"
-    ? selectRecentStrictShareMessages(board.messages, limit) : [];
+    ? selectStrictShareWindowMessages(board.messages, limit, effectiveOffset) : [];
+  const windowEnd = messageCount - effectiveOffset;
+  const windowStart = windowEnd - source.length + 1;
   const sourceKey = JSON.stringify({
     dashboardId: board?.id, source, mappings: activePrivacyMappings,
-    limit, sensitiveText, edits,
+    limit, effectiveOffset, messageCount, sensitiveText, edits,
   });
   const validPreview = preview?.key === sourceKey ? preview : null;
   const allReviewed = Boolean(validPreview &&
@@ -95,7 +102,7 @@ export function StrictSharePreviewLauncher() {
   const copy = zh ? {
     launch: "ChatGPT 隱私預覽（實驗）", title: "手動遮蔽與分享前審核",
     close: "關閉", info: "僅於本機處理。未授權前不能下載，絕不會自動上傳或傳送到 ChatGPT。檢查通過不代表完全匿名。",
-    selection: "最近訊息數量", sensitivity: "須保護的名稱、暱稱、學校、地點及獨特事件（每行一項）",
+    selection: "單次審核的訊息數量（預設最少）", windowRange: "原始時間順序的範圍", older: "較早的訊息", newer: "較新的訊息", sensitivity: "須保護的名稱、暱稱、學校、地點及獨特事件（每行一項）",
     hint: "列表只留在此頁記憶體；未列出的敏感背景可能仍可識別。",
     mask: "逐句遮蔽／排除訊息（原文只在本機顯示）",
     action: "訊息處理", keep: "保留並逐句檢查", omit: "完全排除此則", all: "遮蔽整則內容",
@@ -110,7 +117,7 @@ export function StrictSharePreviewLauncher() {
   } : {
     launch: "ChatGPT private review (experimental)", title: "Mask and review before sharing",
     close: "Close", info: "LOCAL ONLY. Files cannot be downloaded before approval. Nothing is automatically uploaded or sent to ChatGPT. Passing scans does not prove anonymity.",
-    selection: "Maximum recent messages", sensitivity: "Sensitive names, aliases, schools, places, unique events (one per line)",
+    selection: "Messages per selected window (small by default)", windowRange: "Chronological messages", older: "Older window", newer: "Newer window", sensitivity: "Sensitive names, aliases, schools, places, unique events (one per line)",
     hint: "This list stays in this page's memory. Unlisted contextual clues may still be identifying.",
     mask: "Mask sentences / omit messages (raw text shown locally)",
     action: "Message action", keep: "Keep; mask individual sentences", omit: "Omit this message entirely", all: "Mask entire message content",
@@ -239,12 +246,28 @@ export function StrictSharePreviewLauncher() {
                 {copy.selection}
                 <select className="mt-1 block w-full rounded-lg border border-card-border p-2 text-sm"
                   value={limit} onChange={(event) => {
-                    setLimit(Number(event.target.value) as 25 | 50 | 100);
+                    setLimit(Number(event.target.value) as 5 | 10 | 25);
+                    setWindowOffset(0);
                     setEdits({}); clearApproval();
                   }}>
-                  <option value={25}>25</option><option value={50}>50</option><option value={100}>100</option>
+                  <option value={5}>5</option><option value={10}>10</option><option value={25}>25</option>
                 </select>
               </label>
+              <div className="flex flex-wrap items-center gap-2 rounded-lg border border-card-border p-2 text-xs">
+                <span className="grow">{copy.windowRange}: {windowStart}–{windowEnd} / {messageCount}</span>
+                <button type="button" disabled={windowStart <= 1}
+                  className="rounded border px-2 py-1 disabled:opacity-40"
+                  onClick={() => {
+                    setWindowOffset((current) => Math.min(messageCount - 1, current + limit));
+                    setEdits({}); clearApproval();
+                  }}>{copy.older}</button>
+                <button type="button" disabled={effectiveOffset === 0}
+                  className="rounded border px-2 py-1 disabled:opacity-40"
+                  onClick={() => {
+                    setWindowOffset((current) => Math.max(0, current - limit));
+                    setEdits({}); clearApproval();
+                  }}>{copy.newer}</button>
+              </div>
               <label className="block text-xs font-semibold text-accent-deep">
                 {copy.sensitivity}
                 <textarea className="mt-1 block min-h-20 w-full resize-y rounded-lg border border-card-border p-2 text-sm"
