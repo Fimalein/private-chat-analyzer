@@ -42,6 +42,8 @@ export function ChatGptExportLauncher() {
     ChatGptExportDateMode["mode"]
   >("exact");
   const [weekShift, setWeekShift] = useState(52);
+  const [intendedReceiver, setIntendedReceiver] = useState<"temporary" | "regular" | "other">("temporary");
+  const [providerAcknowledged, setProviderAcknowledged] = useState(false);
   const active = dashboards.find((board) => board.id === activeId);
   const prepared = useMemo(
     () =>
@@ -104,6 +106,14 @@ export function ChatGptExportLauncher() {
           error: "Export failed. Nothing was shared.",
           caveat:
             "Detection is not a guarantee of complete anonymization. Names, places, dates, and contextual clues may still need manual review.",
+          providerTitle: "Intended recipient (the app does not send files automatically)",
+          providerTemporary: "ChatGPT Temporary Chat",
+          providerRegular: "ChatGPT regular chat",
+          providerOther: "Other recipient / native share target",
+          providerTemporaryNote: "OpenAI receives the content if you choose to send it. Temporary Chats are not used for model training and may be retained up to 30 days for safety. This app cannot verify which ChatGPT mode is active.",
+          providerRegularNote: "OpenAI receives the content if you choose to send it. Turn off 'Improve the model for everyone' in ChatGPT Data Controls if training is unwanted. Regular chats stay in account history until deleted.",
+          providerOtherNote: "The receiving app's data use, retention, and training policies may differ. Review them before selecting a destination.",
+          providerAck: "I understand that downloading is local but manually sharing these files exposes their content to my selected recipient. This app cannot enforce recipient privacy settings.",
         }
       : {
           launch: "ChatGPT 匯出",
@@ -132,10 +142,18 @@ export function ChatGptExportLauncher() {
           done: "套件已產生。",
           error: "匯出失敗，沒有分享任何資料。",
           caveat: "偵測不到不等於完全匿名。姓名、地點、日期與上下文線索仍可能需要人工檢查。",
+          providerTitle: "預定收件方（本工具不會自動傳送）",
+          providerTemporary: "ChatGPT 臨時對話",
+          providerRegular: "ChatGPT 一般對話",
+          providerOther: "其他服務／系統分享目標",
+          providerTemporaryNote: "若你選擇送出，OpenAI 會收到內容。臨時對話不會用於模型訓練，但可能為安全目的保留最長 30 天。本工具無法確認 ChatGPT 實際模式。",
+          providerRegularNote: "若你選擇送出，OpenAI 會收到內容。如不想用於訓練，請先在資料控制關閉「為所有人改善模型」。一般對話會留在帳戶記錄中直到刪除。",
+          providerOtherNote: "其他接收服務的資料使用、保留與模型訓練規則可能不同，請在分享前確認。",
+          providerAck: "我了解本機下載不代表外部傳送；自行分享檔案會讓接收方取得內容，而本工具無法替我設定接收方的隱私選項。",
         };
 
   async function exportPack() {
-    if (!shiftValid) {
+    if (!providerAcknowledged || !shiftValid) {
       setStatus("error");
       return;
     }
@@ -179,6 +197,7 @@ export function ChatGptExportLauncher() {
         type="button"
         onClick={() => {
           setStatus("idle");
+          setProviderAcknowledged(false);
           setOpen(true);
         }}
         className={`fixed bottom-28 right-5 z-30 rounded-full px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 ${
@@ -333,6 +352,32 @@ export function ChatGptExportLauncher() {
             </div>
 
             <p className="mt-3 text-[11px] leading-5 text-muted">{text.caveat}</p>
+            <div className="mt-4 rounded-xl border border-card-border p-3 text-xs">
+              <label className="block font-semibold text-accent-deep">
+                {text.providerTitle}
+                <select value={intendedReceiver}
+                  onChange={(event) => {
+                    setIntendedReceiver(event.target.value as typeof intendedReceiver);
+                    setProviderAcknowledged(false);
+                  }}
+                  className="mt-2 block w-full rounded border border-card-border bg-white p-2 text-sm">
+                  <option value="temporary">{text.providerTemporary}</option>
+                  <option value="regular">{text.providerRegular}</option>
+                  <option value="other">{text.providerOther}</option>
+                </select>
+              </label>
+              <p className="mt-2 leading-5 text-muted">
+                {intendedReceiver === "temporary" ? text.providerTemporaryNote :
+                  intendedReceiver === "regular" ? text.providerRegularNote : text.providerOtherNote}
+              </p>
+              <a className="mt-1 inline-block underline" target="_blank" rel="noopener noreferrer"
+                href="https://help.openai.com/en/articles/7730893-data-controls-in-chatgpt">OpenAI Data Controls</a>
+              <label className="mt-3 flex items-start gap-2 leading-5">
+                <input type="checkbox" className="mt-1" checked={providerAcknowledged}
+                  onChange={(event) => setProviderAcknowledged(event.target.checked)} />
+                <span>{text.providerAck}</span>
+              </label>
+            </div>
 
             <div className="mt-5 flex items-center justify-end gap-3">
               {status === "done" ? (
@@ -342,7 +387,7 @@ export function ChatGptExportLauncher() {
               ) : null}
               <button
                 type="button"
-                disabled={highCount > 0 || !shiftValid || status === "working"}
+                disabled={highCount > 0 || !shiftValid || !providerAcknowledged || status === "working"}
                 onClick={exportPack}
                 className="rounded-full bg-accent-deep px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
