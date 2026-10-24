@@ -71,8 +71,8 @@ describe("local credential export blocker (synthetic only)", () => {
 
   it("refuses partial masking of a fabricated private-key block", () => {
     const payload = "FABRICATEDKEYBODYABCDEF00000000";
-    const raw = [dummy("-----BEGIN PRIVATE KEY-----\\n" + payload + "\\n-----END PRIVATE KEY-----")];
-    const incomplete = [dummy("[REDACTED_CREDENTIAL]\\n" + payload + "\\n-----END PRIVATE KEY-----")];
+    const raw = [dummy("-----BEGIN PRIVATE KEY-----\n" + payload + "\n-----END PRIVATE KEY-----")];
+    const incomplete = [dummy("[REDACTED_CREDENTIAL]\n" + payload + "\n-----END PRIVATE KEY-----")];
     expect(auditUnmaskedSecrets(raw, incomplete).unmasked).toBeGreaterThan(0);
     expect(() => assertNoExportedSecrets(raw, incomplete, [])).toThrow(SecretExportBlockedError);
     expect(() => assertNoExportedSecrets(raw, [dummy("[REDACTED_CREDENTIAL]")], [])).not.toThrow();
