@@ -1,5 +1,6 @@
 import { attachReplyGaps, deriveReplyGaps } from "@/lib/analysis/reply-gaps";
 import type { ChatMessage } from "@/lib/chat-types";
+import { assertNoExportedSecrets } from "@/lib/privacy/secret-guard";
 import {
   pseudonymizeMessages,
   scanStructuredPii,
@@ -304,9 +305,7 @@ export function buildChatGptExportPack(
 
   const index = buildAnalysisIndex(messages, audit, dateMode);
 
-  return {
-    audit,
-    files: [
+  const files: ChatGptExportFile[] = [
       {
         name: "chat_redacted.txt",
         type: "text/plain",
@@ -327,6 +326,7 @@ export function buildChatGptExportPack(
         type: "text/plain",
         content: renderInstructions(dateMode),
       },
-    ],
-  };
+    ];
+  assertNoExportedSecrets(rawMessages, messages, files);
+  return { audit, files };
 }
