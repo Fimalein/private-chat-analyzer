@@ -25,6 +25,8 @@ jobs:
           cache: npm
       - name: Enforce public fixture safety
         run: npm run privacy:guard
+      - name: Check browser probe syntax
+        run: node --check scripts/audit-browser-network.cjs
       - name: Install app and build static output
         run: |
           npm ci
