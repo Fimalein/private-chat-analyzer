@@ -114,6 +114,32 @@ const fixture = [
     await acknowledge.check();
     assert.equal(await shareButton.isEnabled(), true,
       "Recipient-specific re-acknowledgement must be possible");
+    // Additional synthetic chat: no native share is possible if a cookie secret
+    // remains, even when recipient terms have been acknowledged.
+    await page.goto(origin, { waitUntil: "networkidle" });
+    const secretFixture = [
+      "[LINE] Chat history with Synthetic Person One",
+      "Saved at 2026/10/11 20:00",
+      "",
+      "2026/10/11(日)",
+      "9:10\tSynthetic Person One\tCookie: sessionid=FABRICATED_COOKIE_VALUE_FOR_TEST",
+      "9:11\tSynthetic Person Two\tSYNTHETIC_FIXTURE, no real conversation",
+    ].join("\n");
+    await page.locator('input[type="file"]').first().setInputFiles({
+      name: "SYNTHETIC_FIXTURE-local-secret.txt",
+      mimeType: "text/plain",
+      buffer: Buffer.from(secretFixture, "utf8"),
+    });
+    await page.getByRole("heading", { name: /確認這份對話|Check this chat/ }).waitFor();
+    await page.getByRole("button", { name: /打開儀表板|Open dashboard/ }).click();
+    await page.getByRole("button", { name: /ChatGPT 匯出|Export for ChatGPT/ }).click();
+    await page.getByRole("checkbox", {
+      name: /我了解本機下載|I understand that downloading/,
+    }).check();
+    assert.equal(await page.getByRole("button", {
+      name: /下載 4 個檔案|download 4 files/,
+    }).isDisabled(), true, "Synthetic secret must block ordinary export after provider acknowledgement");
+    await page.getByText(/認證秘密資料|Authentication secrets remain/).waitFor();
     // Never trigger native share or a download in this pre-handoff network test.
 
     assert.equal(leakedToNetwork.length, 0, "Synthetic content reached a network request");
@@ -124,6 +150,7 @@ const fixture = [
       syntheticFixtureOnly: true,
       importAndStrictPreview: "passed",
       ordinaryExportRecipientGate: "passed",
+      ordinarySecretGate: "passed",
       localRequestCount: localRequests,
       attemptedExternalRequests: deniedExternal.length,
       outgoingCanaryRequests: leakedToNetwork.length,
