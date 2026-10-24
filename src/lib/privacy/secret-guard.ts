@@ -69,7 +69,7 @@ function findValues(text: string): string[] {
   // Generic assignment and JSON/YAML key-value styles, including tokens in
   // query strings. Only the VALUE is treated as a secret, so mapping a
   // credential value can preserve harmless surrounding conversation context.
-  collect(/\b(?:password|passwd|pwd|passphrase|api[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|id[_-]?token|session[_-]?id|session[_-]?token|sessionid|csrftoken|oauth[_-]?code|x-amz-signature|signature)\b["']?\s*[:=]\s*["']?([^\s"'&,;\\#]{4,})/gi);
+  collect(/\b(?:password|passwd|pwd|passphrase|api[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|id[_-]?token|token|secret|otp|verification[_-]?code|one[_-]?time[_-]?code|session[_-]?id|session[_-]?token|sessionid|csrftoken|oauth[_-]?code|x-amz-signature|signature)\b["']?\s*[:=]\s*["']?([^\s"'&,;\\#]{4,})/gi);
 
   // Standalone API/authorization headers and credentials in natural language.
   collect(/\b(?:Bearer|Basic)\s+([a-z0-9._~+\/=-]{8,})\b/gi);

@@ -15,6 +15,7 @@ const dummy = (content: string): ChatMessage => ({
 });
 const onlyFabricated = [
   "password=FABRICATEDPassword099",
+  "token=FabricatedStandaloneToken543210",
   "Authorization: Bearer FabricatedBearerExample09876",
   "Cookie: sessionid=FabSessionValue0987654321",
   "api_key=FABRICATED_API_KEY_56789",
