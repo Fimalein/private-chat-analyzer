@@ -312,3 +312,25 @@ export function selectRecentStrictShareMessages(
     (a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id),
   ).slice(-limit);
 }
+
+/**
+ * The strict UI shares a small contiguous excerpt, not the whole transcript.
+ * offset=0 selects the newest page; a positive offset moves back in history.
+ * Every value is validated, so malformed UI inputs cannot widen disclosure.
+ */
+export function selectStrictShareWindowMessages(
+  messages: readonly ChatMessage[],
+  limit: 5 | 10 | 25,
+  offset: number,
+): ChatMessage[] {
+  if (![5, 10, 25].includes(limit) || !Number.isSafeInteger(offset) || offset < 0 ||
+      (messages.length > 0 && offset >= messages.length) ||
+      (messages.length === 0 && offset !== 0)) {
+    throw new RangeError("invalid strict selection window");
+  }
+  const sorted = [...messages].sort(
+    (a, b) => a.timestamp - b.timestamp || a.id.localeCompare(b.id),
+  );
+  const end = sorted.length - offset;
+  return sorted.slice(Math.max(0, end - limit), end);
+}
