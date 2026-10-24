@@ -4,7 +4,7 @@ Status: **Draft PR #47; not merged, and not proof of anonymity**. The experiment
 
 ## Current local-only sequence
 
-1. Choose only the most recent **25, 50 or 100 messages** from the active imported conversation.
+1. Choose a **small, contiguous, purpose-specific excerpt** from the active imported conversation. The experimental UI starts with only the **latest 5 messages**, permits windows of **5, 10 or 25**, and lets the reviewer move backward/forward through earlier windows without exporting the surrounding history. Imported records are sorted chronologically for this view. Switching windows, changing their size, or changing the source invalidates the preview and every approval.
 2. Enter names, nicknames, places, schools, organizations, rare-event phrases and other **known private values**, one per line. This list is kept locally and is **not** included in exported files.
 3. Review the raw selected messages *on device*. For each message, choose **omit entire message**, **mask all content**, or **mask individual sentence segments**. The mechanical splitter preserves line breaks and punctuation; it is not reliable linguistic sentence segmentation. Sensitive text can span segments, so review surrounding context.
 4. Generate a fresh local preview. The strict API rejects missing pseudonym mappings for any selected sender display name or sender ID, **all** structured PII (including medium findings), and original exact dates. It runs the existing pseudonymization/mapping stage, builds the four actual serialized files, then independently scans the literal bytes and JSON/JSONL decoded values for structured detections and locally listed source strings.
@@ -34,11 +34,17 @@ A deeper **nested JSON string containing Unicode escapes** initially bypassed th
 
 **Open security limitations:** the encoded-value checks are finite and input-length bounded; names never listed or recognized remain invisible. False positives are possible, especially for one-character denylist items or common encoded substrings. Manual cross-message review, participant privacy, independent novel leak corpora, UI/browser e2e testing, mobile/network inspection and outside security review remain necessary. Do not represent the results as guaranteed anonymity or general permission to upload private transcripts.
 
+## Smaller explicit disclosure windows (2026-10-24)
+
+The strict-only preview now defaults to five messages instead of 25, with bounded 5/10/25-message pages and explicit older/newer navigation. Only the currently displayed page enters the generator; hidden adjacent messages cannot be serialized into the four-file pack. The scope, offset, source and mappings are bound to the preview key and changing a window resets manual edits and approvals. Synthetic regression tests check out-of-scope content exclusion, page boundaries, malicious offsets, input immutability and cross-window approval invalidation.
+
+This is an engineering minimization improvement **not** an independent privacy validation. A five-message sequence can still reveal a person through relationships or unusual events. The window selection currently uses chronological position, not topic search or arbitrary disjoint excerpt selection; the original human review and four-file gate remain mandatory.
+
 ## Remaining gates before recommending full private chat upload
 
 - **Manual/contextual review cannot be automated away.** Unknown names, indirect descriptions, sensitive life events, medical/family/intimate context, and cross-message combinations may identify participants even when no single known secret survives.
 - **Timestamp granularity**: relative-day mode preserves local time-of-day and reply-gap information. This can still leak an identifiable timeline; a coarser chronological mode and manual removal of rare timeline events are desirable.
-- **Participant consent and minimization**: defaulting to last 25 still may include more than needed. Support a purpose-specific message/window selection and document other parties' interests.
+- **Participant consent and minimization**: even the new default last five messages may contain more than necessary. Add an explicit purpose note and optionally disjoint, topic-driven excerpt selection; document the interests and consent of other participants.
 - **End-to-end UI interaction tests**: verify all four confirmations and download gating in a browser, UI dismissal/reset behavior, model-assisted reviews and accessibility, malicious imports, unusual JSON and long session performance.
 - **Network/privacy audit**: independently verify locally that original chat texts, denylist, mappings, previews and file contents do not leave the browser prior to explicit user handling. Browser extensions, cloud sync of downloaded files and later manual uploads remain user-environment risks.
 - **Independent evaluation**: untouched real-world-licensed, privacy-safe examples; targeted novel PII and context leakage suites; multiple runtime/device tests and quantified residual risk. Prior evaluated NER fixtures are no longer unseen.
