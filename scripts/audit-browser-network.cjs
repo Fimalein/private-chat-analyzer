@@ -134,6 +134,24 @@ const fixture = [
         "Only four-file review plus explicit authorization may unlock ordinary export");
     }
     await reviewAllFour();
+    const scopePicker = page.getByLabel("Export message scope");
+    await scopePicker.selectOption("dates");
+    assert.equal(await shareButton.isDisabled(), true,
+      "Switching scope must revoke previous approval");
+    const previewButton = page.getByRole("button", {
+      name: /產生 4 份完整檔案的本機預覽|Generate local preview of 4 exact files/,
+    });
+    assert.equal(await previewButton.isDisabled(), true,
+      "Empty calendar range must never silently mean all messages");
+    await page.getByLabel("Export start date").fill("2026-10-11");
+    await page.getByLabel("Export end date").fill("2026-10-11");
+    assert.equal(await previewButton.isEnabled(), true,
+      "Valid selected calendar range can be previewed");
+    await scopePicker.selectOption("recent");
+    await page.getByLabel("Recent message count").selectOption("100");
+    assert.equal(await shareButton.isDisabled(), true,
+      "Changing the recent count must revoke previous approval");
+    await reviewAllFour();
     const provider = page.getByLabel(/預定收件方|Intended recipient/);
     await provider.selectOption("other");
     assert.equal(await shareButton.isDisabled(), true,
@@ -170,6 +188,84 @@ const fixture = [
     await page.getByText(/認證秘密資料|Authentication secrets remain/).waitFor();
     // Never trigger native share or a download in this pre-handoff network test.
 
+    // Android-like Chromium touch/viewport smoke test, NOT a real Android phone.
+    const mobile = await browser.newContext({
+      viewport: { width: 393, height: 851 },
+      deviceScaleFactor: 2,
+      isMobile: true,
+      hasTouch: true,
+      serviceWorkers: "block",
+      acceptDownloads: false,
+    });
+    const mobilePage = await mobile.newPage();
+    let mobileLocalRequests = 0;
+    let mobileEgressAttempts = 0;
+    let mobileCanaryAttempts = 0;
+    await mobile.route("**/*", async route => {
+      const request = route.request();
+      const address = request.url();
+      if ((address + "\n" + (request.postData() || "")).includes("MOBILE_FABRICATED_FIRST_EXCLUDED")) {
+        mobileCanaryAttempts++;
+      }
+      if (address.startsWith("http:") || address.startsWith("https:")) {
+        if (new URL(address).origin !== originHost) {
+          mobileEgressAttempts++;
+          return route.abort("blockedbyclient");
+        }
+        mobileLocalRequests++;
+      }
+      return route.continue();
+    });
+    mobilePage.on("websocket", ws => {
+      if (!ws.url().startsWith(originHost)) mobileEgressAttempts++;
+    });
+    try {
+      await mobilePage.goto(origin, { waitUntil: "networkidle" });
+      const mobileLines = [
+        "[LINE] Chat history with Synthetic Person One",
+        "Saved at 2026/10/11 20:00",
+        "",
+        "2026/10/11(日)",
+        ...Array.from({ length: 30 }, (_, index) =>
+          "9:10\tSynthetic Person " + (index % 2 ? "Two" : "One") + "\t" +
+          (index === 0 ? "MOBILE_FABRICATED_FIRST_EXCLUDED" : "SYNTHETIC_MOBILE_MESSAGE_" + index)),
+      ].join("\n");
+      await mobilePage.locator('input[type="file"]').first().setInputFiles({
+        name: "SYNTHETIC_FIXTURE-mobile-touch-check.txt",
+        mimeType: "text/plain",
+        buffer: Buffer.from(mobileLines, "utf8"),
+      });
+      await mobilePage.getByRole("heading", { name: /確認這份對話|Check this chat/ }).waitFor();
+      await mobilePage.getByRole("button", { name: /打開儀表板|Open dashboard/ }).click();
+      await mobilePage.getByRole("button", { name: /ChatGPT 匯出|Export for ChatGPT/ }).click();
+      const mobileScope = mobilePage.getByLabel("Export message scope");
+      assert.equal(await mobileScope.inputValue(), "recent", "Touch layout defaults to recent messages");
+      assert.equal(await mobilePage.getByLabel("Recent message count").inputValue(), "25");
+      await mobilePage.getByRole("button", {
+        name: /產生 4 份完整檔案的本機預覽|Generate local preview of 4 exact files/,
+      }).click();
+      const mobileViewer = mobilePage.getByRole("textbox", { name: "Full selected export file preview" });
+      await mobileViewer.waitFor();
+      assert.equal((await mobileViewer.inputValue()).includes("MOBILE_FABRICATED_FIRST_EXCLUDED"), false,
+        "Mobile preview must exclude a fabricated first message outside the selected last 25");
+      const mobileShare = mobilePage.getByRole("button", {
+        name: /下載 4 個檔案|download 4 files/,
+      });
+      assert.equal(await mobileShare.isDisabled(), true, "Mobile preview must not unlock file sharing");
+      await mobileScope.selectOption("all");
+      assert.equal(await mobileShare.isDisabled(), true, "Scope changes revoke touch-layout preview");
+      await mobilePage.getByRole("button", {
+        name: /產生 4 份完整檔案的本機預覽|Generate local preview of 4 exact files/,
+      }).click();
+      await mobileViewer.waitFor();
+      assert.equal((await mobileViewer.inputValue()).includes("MOBILE_FABRICATED_FIRST_EXCLUDED"), true,
+        "Explicit all selection includes the fabricated earliest message");
+      assert.equal(mobileEgressAttempts, 0, "No off-origin calls in mobile emulation");
+      assert.equal(mobileCanaryAttempts, 0, "No synthetic canary egress in mobile emulation");
+    } finally {
+      await mobile.close();
+    }
+
     assert.equal(leakedToNetwork.length, 0, "Synthetic content reached a network request");
     assert.equal(deniedExternal.length, 0, "An unexpected external network request was attempted");
     assert.equal(websockets.filter((kind) => kind !== "local").length, 0,
@@ -179,6 +275,10 @@ const fixture = [
       importAndStrictPreview: "passed",
       ordinaryExportRecipientGate: "passed",
       ordinaryFourFileApproval: "passed",
+      scopeResetAndMobileEmulation: "passed",
+      mobileSameOriginRequests: mobileLocalRequests,
+      mobileExternalRequests: mobileEgressAttempts,
+      mobileOutgoingCanaryRequests: mobileCanaryAttempts,
       ordinarySecretGate: "passed",
       localRequestCount: localRequests,
       attemptedExternalRequests: deniedExternal.length,

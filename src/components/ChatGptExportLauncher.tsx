@@ -12,6 +12,12 @@ import {
 } from "@/lib/export/chatgpt-pack";
 import { auditUnmaskedSecrets, SecretExportBlockedError } from "@/lib/privacy/secret-guard";
 import {
+  localHandoffContextId,
+  selectChatExportScope,
+  type ChatExportScope,
+  type RecentExportCount,
+} from "@/lib/export/chat-export-scope";
+import {
   approveStandardHandoff,
   previewStandardHandoff,
   standardHandoffSnapshot,
@@ -55,24 +61,35 @@ export function ChatGptExportLauncher() {
   const [reviewedFileNames, setReviewedFileNames] = useState<string[]>([]);
   const [reviewFileIndex, setReviewFileIndex] = useState(0);
   const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const [scopeMode, setScopeMode] = useState<ChatExportScope["mode"]>("recent");
+  const [recentCount, setRecentCount] = useState<RecentExportCount>(25);
+  const [rangeStart, setRangeStart] = useState("");
+  const [rangeEnd, setRangeEnd] = useState("");
   const active = dashboards.find((board) => board.id === activeId);
+  const exportScope: ChatExportScope = scopeMode === "recent"
+    ? { mode: "recent", count: recentCount }
+    : scopeMode === "dates"
+      ? { mode: "dates", startDate: rangeStart, endDate: rangeEnd }
+      : { mode: "all" };
+  const selectedMessages = useMemo(() => {
+    if (!active || active.kind === "default") return [];
+    try { return selectChatExportScope(active.messages, exportScope); }
+    catch { return []; } // Invalid date/empty selection: fail closed.
+  }, [active, scopeMode, recentCount, rangeStart, rangeEnd]);
   const prepared = useMemo(
-    () =>
-      active && active.kind !== "default"
-        ? prepareExportMessages(active.messages, activePrivacyMappings)
-        : [],
-    [active, activePrivacyMappings],
+    () => prepareExportMessages(selectedMessages, activePrivacyMappings),
+    [selectedMessages, activePrivacyMappings],
   );
   const audit = useMemo(() => auditPreparedExport(prepared), [prepared]);
   const secretAudit = useMemo(() => {
-    if (!active || active.kind === "default") return { unmasked: 0 };
-    try { return auditUnmaskedSecrets(active.messages, prepared); }
+    try { return auditUnmaskedSecrets(selectedMessages, prepared); }
     catch { return { unmasked: 1 }; } // Fail closed on oversized/uninspectable input.
-  }, [active, prepared]);
+  }, [selectedMessages, prepared]);
 
   if (!active || active.kind === "default" || active.messages.length === 0) return null;
-  const activeMessages = active.messages;
-  const dashboardId = active.id;
+  const activeMessages = selectedMessages;
+  const scopeValid = selectedMessages.length > 0;
+  const dashboardId = localHandoffContextId(active.id, active.messages, exportScope);
 
   const shiftValid =
     dateModeKind !== "shift_weeks" ||
@@ -102,6 +119,16 @@ export function ChatGptExportLauncher() {
             "Medium-risk items do not block export. Review them if URLs, IP addresses, postal codes, or long IDs could identify someone.",
           ready:
             "No structured high-risk identifiers were found after applying the current privacy mappings.",
+          rangeTitle: "Choose messages to share",
+          recentOption: "Most recent messages",
+          recentCount: "Messages",
+          datesOption: "Local calendar date range (inclusive)",
+          startDate: "From",
+          endDate: "Through",
+          allOption: "Entire imported transcript — explicit choice",
+          rangeCount: "Selected messages",
+          rangeInvalid: "No messages in this range or invalid dates. Nothing can be exported.",
+          rangeCaution: "Only the selected messages enter export and privacy scans. Older messages can contain additional context; the full imported transcript is never selected by default.",
           datePrivacy: "Date privacy",
           exactTitle: "Keep exact timestamps",
           exactBody:
@@ -152,6 +179,16 @@ export function ChatGptExportLauncher() {
           blocked: "高風險資訊完成假名化或遮蔽前，匯出會被阻止。請先使用隱私檢查。",
           warning: "中風險項目不會阻止匯出；若 URL、IP、郵遞區號或長 ID 可能識別個人，請先檢查。",
           ready: "套用目前的隱私規則後，未偵測到結構化高風險識別資訊。",
+          rangeTitle: "選擇要分享的訊息範圍",
+          recentOption: "最近的訊息",
+          recentCount: "訊息筆數",
+          datesOption: "按本地日期範圍（含首尾）",
+          startDate: "從",
+          endDate: "至",
+          allOption: "整份已匯入對話（必須主動選擇）",
+          rangeCount: "已選擇訊息",
+          rangeInvalid: "日期無效或範圍內沒有訊息，禁止匯出。",
+          rangeCaution: "只有選定訊息會進入分享與隱私掃描；全部訊息並非預設選項，其他內容可能影響分析。",
           datePrivacy: "日期隱私",
           exactTitle: "保留精確時間",
           exactBody: "目前的行為。時間序列最完整，但原始日曆日期會保留在匯出中。",
@@ -196,7 +233,7 @@ export function ChatGptExportLauncher() {
     validPreview.files.every(file => reviewedFileNames.includes(file.name)) &&
     reviewedFileNames.length === 4);
   const canShare = Boolean(approvalEnabled && filesReviewed && providerAcknowledged &&
-    shiftValid && audit.highRisk.length === 0 && secretAudit.unmasked === 0 &&
+    shiftValid && scopeValid && audit.highRisk.length === 0 && secretAudit.unmasked === 0 &&
     status !== "working");
 
   function resetReview() {
@@ -209,7 +246,7 @@ export function ChatGptExportLauncher() {
 
   function generatePreview() {
     resetReview();
-    if (!shiftValid || audit.highRisk.length > 0 || secretAudit.unmasked > 0) {
+    if (!shiftValid || !scopeValid || audit.highRisk.length > 0 || secretAudit.unmasked > 0) {
       setStatus("error");
       return;
     }
@@ -303,6 +340,10 @@ export function ChatGptExportLauncher() {
         onClick={() => {
           setStatus("idle");
           setProviderAcknowledged(false);
+          setScopeMode("recent");
+          setRecentCount(25);
+          setRangeStart("");
+          setRangeEnd("");
           resetReview();
           setOpen(true);
         }}
@@ -364,6 +405,59 @@ export function ChatGptExportLauncher() {
                 {text.warning}
               </p>
             ) : null}
+
+            <div className="mt-4 rounded-xl border border-card-border p-3">
+              <h3 className="text-sm font-semibold text-accent-deep">{text.rangeTitle}</h3>
+              <p className="mt-1 text-xs leading-5 text-muted">{text.rangeCaution}</p>
+              <label className="mt-3 block text-xs font-semibold text-accent-deep">
+                {text.rangeTitle}
+                <select aria-label="Export message scope" value={scopeMode}
+                  className="mt-1 block w-full rounded-lg border border-card-border bg-white p-2 text-sm"
+                  onChange={event => {
+                    setScopeMode(event.target.value as ChatExportScope["mode"]);
+                    resetReview();
+                  }}>
+                  <option value="recent">{text.recentOption}</option>
+                  <option value="dates">{text.datesOption}</option>
+                  <option value="all">{text.allOption}</option>
+                </select>
+              </label>
+              {scopeMode === "recent" ? (
+                <label className="mt-3 block text-xs font-semibold text-accent-deep">
+                  {text.recentCount}
+                  <select aria-label="Recent message count" value={recentCount}
+                    className="mt-1 block w-full rounded-lg border border-card-border bg-white p-2 text-sm"
+                    onChange={event => {
+                      setRecentCount(Number(event.target.value) as RecentExportCount);
+                      resetReview();
+                    }}>
+                    {[25, 100, 500, 2000].map(count => (
+                      <option key={count} value={count}>{count}</option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
+              {scopeMode === "dates" ? (
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  <label className="text-xs font-semibold text-accent-deep">
+                    {text.startDate}
+                    <input type="date" aria-label="Export start date" value={rangeStart}
+                      className="mt-1 block w-full min-w-0 rounded-lg border border-card-border bg-white p-2 text-sm"
+                      onChange={event => { setRangeStart(event.target.value); resetReview(); }} />
+                  </label>
+                  <label className="text-xs font-semibold text-accent-deep">
+                    {text.endDate}
+                    <input type="date" aria-label="Export end date" value={rangeEnd}
+                      className="mt-1 block w-full min-w-0 rounded-lg border border-card-border bg-white p-2 text-sm"
+                      onChange={event => { setRangeEnd(event.target.value); resetReview(); }} />
+                  </label>
+                </div>
+              ) : null}
+              <p className="mt-2 text-xs text-muted">
+                {text.rangeCount}: {selectedMessages.length} / {active.messages.length}
+              </p>
+              {!scopeValid ? <p className="mt-2 text-xs text-rose-700">{text.rangeInvalid}</p> : null}
+            </div>
 
             <div className="mt-4">
               <h3 className="text-sm font-semibold text-accent-deep">
@@ -492,7 +586,7 @@ export function ChatGptExportLauncher() {
             <div className="mt-4 space-y-3 rounded-xl border border-card-border p-3">
               <p className="text-xs leading-5 text-muted">{text.previewInfo}</p>
               <button type="button" onClick={generatePreview}
-                disabled={highCount > 0 || secretCount > 0 || !shiftValid || status === "working"}
+                disabled={highCount > 0 || secretCount > 0 || !shiftValid || !scopeValid || status === "working"}
                 className="rounded-full border border-accent px-4 py-2 text-sm font-semibold text-accent-deep disabled:opacity-40">
                 {text.previewStart}
               </button>
