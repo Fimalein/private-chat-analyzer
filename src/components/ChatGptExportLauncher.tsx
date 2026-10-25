@@ -5,13 +5,19 @@ import { useChat } from "@/components/ChatProvider";
 import { useLocale } from "@/components/LocaleProvider";
 import {
   auditPreparedExport,
-  buildChatGptExportPack,
   ExportBlockedError,
   prepareExportMessages,
   type ChatGptExportDateMode,
   type ChatGptExportFile,
 } from "@/lib/export/chatgpt-pack";
 import { auditUnmaskedSecrets, SecretExportBlockedError } from "@/lib/privacy/secret-guard";
+import {
+  approveStandardHandoff,
+  previewStandardHandoff,
+  standardHandoffSnapshot,
+  StandardHandoffBlockedError,
+  type StandardHandoffPreview,
+} from "@/lib/export/reviewed-chatgpt-handoff";
 
 function downloadFile(file: ChatGptExportFile) {
   const blob = new Blob([file.content], { type: `${file.type};charset=utf-8` });
@@ -45,6 +51,10 @@ export function ChatGptExportLauncher() {
   const [weekShift, setWeekShift] = useState(52);
   const [intendedReceiver, setIntendedReceiver] = useState<"temporary" | "regular" | "other">("temporary");
   const [providerAcknowledged, setProviderAcknowledged] = useState(false);
+  const [reviewPreview, setReviewPreview] = useState<StandardHandoffPreview | null>(null);
+  const [reviewedFileNames, setReviewedFileNames] = useState<string[]>([]);
+  const [reviewFileIndex, setReviewFileIndex] = useState(0);
+  const [approvalEnabled, setApprovalEnabled] = useState(false);
   const active = dashboards.find((board) => board.id === activeId);
   const prepared = useMemo(
     () =>
@@ -121,6 +131,14 @@ export function ChatGptExportLauncher() {
           providerRegularNote: "OpenAI receives the content if you choose to send it. Turn off 'Improve the model for everyone' in ChatGPT Data Controls if training is unwanted. Regular chats stay in account history until deleted.",
           providerOtherNote: "The receiving app's data use, retention, and training policies may differ. Review them before selecting a destination.",
           providerAck: "I understand that downloading is local but manually sharing these files exposes their content to my selected recipient. This app cannot enforce recipient privacy settings.",
+          previewStart: "Generate local preview of 4 exact files",
+          previewInfo: "Open each file, inspect its full content locally, and confirm each file. No file is transferred or downloaded by preview.",
+          reviewThis: "I reviewed the entire selected file",
+          reviewCount: "Files confirmed",
+          authorize: "Approve these 4 exact files",
+          approved: "Reviewed files approved. Export rechecks the exact output before sharing.",
+          stale: "The source, mappings, date mode or intended recipient changed. Generate and review a new preview.",
+          previewError: "Preview/review failed: remove remaining sensitive information or revisit the selection.",
         }
       : {
           launch: "ChatGPT 匯出",
@@ -158,19 +176,88 @@ export function ChatGptExportLauncher() {
           providerRegularNote: "若你選擇送出，OpenAI 會收到內容。如不想用於訓練，請先在資料控制關閉「為所有人改善模型」。一般對話會留在帳戶記錄中直到刪除。",
           providerOtherNote: "其他接收服務的資料使用、保留與模型訓練規則可能不同，請在分享前確認。",
           providerAck: "我了解本機下載不代表外部傳送；自行分享檔案會讓接收方取得內容，而本工具無法替我設定接收方的隱私選項。",
+          previewStart: "產生 4 份完整檔案的本機預覽",
+          previewInfo: "逐份開啟並檢查完整內容，再分別確認。本機預覽不會下載或傳送檔案。",
+          reviewThis: "我已檢查此檔案的全部內容",
+          reviewCount: "已確認檔案",
+          authorize: "核准這 4 份完全一致的檔案",
+          approved: "已核准檔案；正式分享前會重新產生並核對內容。",
+          stale: "原文、遮蔽規則、日期或收件方有變更，請重新產生預覽並確認。",
+          previewError: "預覽／審核失敗，請再確認敏感資訊及檔案內容。",
         };
 
+  const currentSnapshot = standardHandoffSnapshot(
+    activeMessages, activePrivacyMappings, selectedDateMode, intendedReceiver, active.id,
+  );
+  const validPreview = reviewPreview?.snapshot === currentSnapshot ? reviewPreview : null;
+  const filesReviewed = Boolean(validPreview &&
+    validPreview.files.length === 4 &&
+    validPreview.files.every(file => reviewedFileNames.includes(file.name)) &&
+    reviewedFileNames.length === 4);
+  const canShare = Boolean(approvalEnabled && filesReviewed && providerAcknowledged &&
+    shiftValid && audit.highRisk.length === 0 && secretAudit.unmasked === 0 &&
+    status !== "working");
+
+  function resetReview() {
+    setReviewPreview(null);
+    setReviewedFileNames([]);
+    setReviewFileIndex(0);
+    setApprovalEnabled(false);
+    setStatus("idle");
+  }
+
+  function generatePreview() {
+    resetReview();
+    if (!shiftValid || audit.highRisk.length > 0 || secretAudit.unmasked > 0) {
+      setStatus("error");
+      return;
+    }
+    try {
+      const next = previewStandardHandoff(
+        activeMessages, activePrivacyMappings, selectedDateMode, intendedReceiver, active.id,
+      );
+      setReviewPreview(next);
+    } catch {
+      // Raw chats/failed matches must never be written to console or telemetry.
+      setStatus("error");
+    }
+  }
+
+  function toggleFileReview(name: string, reviewed: boolean) {
+    setApprovalEnabled(false);
+    setReviewedFileNames(current => reviewed
+      ? [...new Set([...current, name])]
+      : current.filter(item => item !== name));
+  }
+
+  function authorizeReviewedFiles() {
+    setApprovalEnabled(false);
+    try {
+      approveStandardHandoff(
+        activeMessages, activePrivacyMappings, selectedDateMode,
+        intendedReceiver, active.id, validPreview,
+        reviewedFileNames, providerAcknowledged,
+      );
+      setApprovalEnabled(true);
+      setStatus("idle");
+    } catch {
+      setStatus("error");
+    }
+  }
+
   async function exportPack() {
-    if (!providerAcknowledged || !shiftValid) {
+    if (!canShare || !validPreview) {
       setStatus("error");
       return;
     }
 
     setStatus("working");
     try {
-      const pack = buildChatGptExportPack(activeMessages, activePrivacyMappings, {
-        dateMode: selectedDateMode,
-      });
+      const pack = approveStandardHandoff(
+        activeMessages, activePrivacyMappings, selectedDateMode,
+        intendedReceiver, active.id, validPreview,
+        reviewedFileNames, providerAcknowledged,
+      );
       const files = pack.files.map(
         (file) => new File([file.content], file.name, { type: file.type }),
       );
@@ -185,6 +272,11 @@ export function ChatGptExportLauncher() {
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") {
         setStatus("idle");
+        return;
+      }
+      if (error instanceof StandardHandoffBlockedError) {
+        setApprovalEnabled(false);
+        setStatus("error");
         return;
       }
       if (error instanceof SecretExportBlockedError) {
@@ -210,6 +302,7 @@ export function ChatGptExportLauncher() {
         onClick={() => {
           setStatus("idle");
           setProviderAcknowledged(false);
+          resetReview();
           setOpen(true);
         }}
         className={`fixed bottom-28 right-5 z-30 rounded-full px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 ${
@@ -300,7 +393,7 @@ export function ChatGptExportLauncher() {
                         checked={dateModeKind === mode}
                         onChange={() => {
                           setDateModeKind(mode);
-                          setStatus("idle");
+                          resetReview();
                         }}
                         className="mt-1"
                       />
@@ -330,7 +423,7 @@ export function ChatGptExportLauncher() {
                         value={weekShift}
                         onChange={(event) => {
                           setWeekShift(Number(event.target.value));
-                          setStatus("idle");
+                          resetReview();
                         }}
                         className="min-w-0 flex-1 rounded-lg border border-card-border px-2 py-1.5 font-mono text-sm"
                       />
@@ -339,7 +432,7 @@ export function ChatGptExportLauncher() {
                       type="button"
                       onClick={() => {
                         setWeekShift(randomWeekShift());
-                        setStatus("idle");
+                        resetReview();
                       }}
                       className="rounded-full border border-card-border px-3 py-1.5 text-xs font-semibold text-accent-deep hover:border-accent"
                     >
@@ -371,6 +464,7 @@ export function ChatGptExportLauncher() {
                   onChange={(event) => {
                     setIntendedReceiver(event.target.value as typeof intendedReceiver);
                     setProviderAcknowledged(false);
+                    resetReview();
                   }}
                   className="mt-2 block w-full rounded border border-card-border bg-white p-2 text-sm">
                   <option value="temporary">{text.providerTemporary}</option>
@@ -386,9 +480,61 @@ export function ChatGptExportLauncher() {
                 href="https://help.openai.com/en/articles/7730893-data-controls-in-chatgpt">OpenAI Data Controls</a>
               <label className="mt-3 flex items-start gap-2 leading-5">
                 <input type="checkbox" className="mt-1" checked={providerAcknowledged}
-                  onChange={(event) => setProviderAcknowledged(event.target.checked)} />
+                  onChange={(event) => {
+                    setProviderAcknowledged(event.target.checked);
+                    setApprovalEnabled(false);
+                  }} />
                 <span>{text.providerAck}</span>
               </label>
+            </div>
+
+            <div className="mt-4 space-y-3 rounded-xl border border-card-border p-3">
+              <p className="text-xs leading-5 text-muted">{text.previewInfo}</p>
+              <button type="button" onClick={generatePreview}
+                disabled={highCount > 0 || secretCount > 0 || !shiftValid || status === "working"}
+                className="rounded-full border border-accent px-4 py-2 text-sm font-semibold text-accent-deep disabled:opacity-40">
+                {text.previewStart}
+              </button>
+              {reviewPreview && !validPreview ? (
+                <p className="text-xs text-rose-700">{text.stale}</p>
+              ) : null}
+              {validPreview ? (
+                <>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {validPreview.files.map((file, index) => (
+                      <button key={file.name} type="button" onClick={() => setReviewFileIndex(index)}
+                        aria-pressed={reviewFileIndex === index}
+                        className={`break-all rounded-lg border p-2 text-left text-[11px] ${reviewFileIndex === index ? "border-accent bg-[#faf5ff]" : "border-card-border"}`}>
+                        {file.name} {reviewedFileNames.includes(file.name) ? "✓" : ""}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="block text-xs font-semibold text-accent-deep">
+                    {validPreview.files[reviewFileIndex].name}
+                    <textarea aria-label="Full selected export file preview" readOnly
+                      spellCheck={false} value={validPreview.files[reviewFileIndex].content}
+                      className="mt-2 h-64 w-full resize-y rounded-lg border border-card-border bg-[#faf8fc] p-3 font-mono text-xs leading-5"
+                    />
+                  </label>
+                  <label className="flex items-start gap-2 text-xs leading-5">
+                    <input type="checkbox" className="mt-1"
+                      checked={reviewedFileNames.includes(validPreview.files[reviewFileIndex].name)}
+                      onChange={(event) =>
+                        toggleFileReview(validPreview.files[reviewFileIndex].name, event.target.checked)}
+                    />
+                    <span>{text.reviewThis}</span>
+                  </label>
+                  <p className="text-xs text-muted">{text.reviewCount}: {reviewedFileNames.length}/4</p>
+                  <button type="button" onClick={authorizeReviewedFiles}
+                    disabled={!filesReviewed || !providerAcknowledged || approvalEnabled}
+                    className="rounded-full border border-accent px-4 py-2 text-sm font-semibold text-accent-deep disabled:opacity-40">
+                    {text.authorize}
+                  </button>
+                  {approvalEnabled && canShare ? (
+                    <p className="text-xs text-emerald-700">{text.approved}</p>
+                  ) : null}
+                </>
+              ) : null}
             </div>
 
             <div className="mt-5 flex items-center justify-end gap-3">
@@ -399,7 +545,7 @@ export function ChatGptExportLauncher() {
               ) : null}
               <button
                 type="button"
-                disabled={highCount > 0 || secretCount > 0 || !shiftValid || !providerAcknowledged || status === "working"}
+                disabled={!canShare}
                 onClick={exportPack}
                 className="rounded-full bg-accent-deep px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               >

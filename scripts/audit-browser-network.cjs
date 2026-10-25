@@ -105,15 +105,43 @@ const fixture = [
       name: /我了解本機下載|I understand that downloading/,
     });
     await acknowledge.check();
-    assert.equal(await shareButton.isEnabled(), true,
-      "Explicit provider acknowledgement should unlock a non-secret export");
+    assert.equal(await shareButton.isDisabled(), true,
+      "Provider consent alone must never unlock the ordinary exporter");
+    async function reviewAllFour() {
+      await page.getByRole("button", {
+        name: /產生 4 份完整檔案的本機預覽|Generate local preview of 4 exact files/,
+      }).click();
+      await page.getByRole("textbox", { name: "Full selected export file preview" }).waitFor();
+      const names = [
+        "chat_redacted.txt", "chat_redacted.jsonl",
+        "analysis_index.json", "ChatGPT_analysis_instructions.txt",
+      ];
+      for (const fileName of names) {
+        await page.getByRole("button", { name: fileName, exact: true }).click();
+        const fileViewer = page.getByRole("textbox", { name: "Full selected export file preview" });
+        assert.ok((await fileViewer.inputValue()).length > 0,
+          "Each selected file must show its actual full content");
+        await page.getByRole("checkbox", {
+          name: /我已檢查此檔案的全部內容|I reviewed the entire selected file/,
+        }).check();
+        assert.equal(await shareButton.isDisabled(), true,
+          "Reviewing individual files must not directly authorize sharing");
+      }
+      await page.getByRole("button", {
+        name: /核准這 4 份完全一致的檔案|Approve these 4 exact files/,
+      }).click();
+      assert.equal(await shareButton.isEnabled(), true,
+        "Only four-file review plus explicit authorization may unlock ordinary export");
+    }
+    await reviewAllFour();
     const provider = page.getByLabel(/預定收件方|Intended recipient/);
     await provider.selectOption("other");
     assert.equal(await shareButton.isDisabled(), true,
       "Changing the intended recipient must invalidate acknowledgement");
     await acknowledge.check();
-    assert.equal(await shareButton.isEnabled(), true,
-      "Recipient-specific re-acknowledgement must be possible");
+    assert.equal(await shareButton.isDisabled(), true,
+      "Changing recipient invalidates even the earlier file-specific review");
+    await reviewAllFour();
     // Additional synthetic chat: no native share is possible if a cookie secret
     // remains, even when recipient terms have been acknowledged.
     await page.goto(origin, { waitUntil: "networkidle" });
@@ -150,6 +178,7 @@ const fixture = [
       syntheticFixtureOnly: true,
       importAndStrictPreview: "passed",
       ordinaryExportRecipientGate: "passed",
+      ordinaryFourFileApproval: "passed",
       ordinarySecretGate: "passed",
       localRequestCount: localRequests,
       attemptedExternalRequests: deniedExternal.length,
