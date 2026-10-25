@@ -231,7 +231,7 @@ const fixture = [
         "",
         "2026/10/11(日)",
         ...Array.from({ length: 30 }, (_, index) =>
-          "9:10\tSynthetic Person " + (index % 2 ? "Two" : "One") + "\t" +
+          "9:" + String(index).padStart(2, "0") + "\tSynthetic Person " + (index % 2 ? "Two" : "One") + "\t" +
           (index === 0 ? "MOBILE_FABRICATED_FIRST_EXCLUDED" : "SYNTHETIC_MOBILE_MESSAGE_" + index)),
       ].join("\n");
       await mobilePage.locator('input[type="file"]').first().setInputFiles({
