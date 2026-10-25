@@ -72,6 +72,7 @@ export function ChatGptExportLauncher() {
 
   if (!active || active.kind === "default" || active.messages.length === 0) return null;
   const activeMessages = active.messages;
+  const dashboardId = active.id;
 
   const shiftValid =
     dateModeKind !== "shift_weeks" ||
@@ -187,7 +188,7 @@ export function ChatGptExportLauncher() {
         };
 
   const currentSnapshot = standardHandoffSnapshot(
-    activeMessages, activePrivacyMappings, selectedDateMode, intendedReceiver, active.id,
+    activeMessages, activePrivacyMappings, selectedDateMode, intendedReceiver, dashboardId,
   );
   const validPreview = reviewPreview?.snapshot === currentSnapshot ? reviewPreview : null;
   const filesReviewed = Boolean(validPreview &&
@@ -214,7 +215,7 @@ export function ChatGptExportLauncher() {
     }
     try {
       const next = previewStandardHandoff(
-        activeMessages, activePrivacyMappings, selectedDateMode, intendedReceiver, active.id,
+        activeMessages, activePrivacyMappings, selectedDateMode, intendedReceiver, dashboardId,
       );
       setReviewPreview(next);
     } catch {
@@ -235,7 +236,7 @@ export function ChatGptExportLauncher() {
     try {
       approveStandardHandoff(
         activeMessages, activePrivacyMappings, selectedDateMode,
-        intendedReceiver, active.id, validPreview,
+        intendedReceiver, dashboardId, validPreview,
         reviewedFileNames, providerAcknowledged,
       );
       setApprovalEnabled(true);
@@ -255,7 +256,7 @@ export function ChatGptExportLauncher() {
     try {
       const pack = approveStandardHandoff(
         activeMessages, activePrivacyMappings, selectedDateMode,
-        intendedReceiver, active.id, validPreview,
+        intendedReceiver, dashboardId, validPreview,
         reviewedFileNames, providerAcknowledged,
       );
       const files = pack.files.map(
