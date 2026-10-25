@@ -10,6 +10,7 @@ const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
 
 const origin = process.env.CHATSTORY_TEST_ORIGIN || "http://127.0.0.1:4173";
+let auditStage = "desktop_initial";
 const canaries = [
   "network-sentinel-chat-418",
   "sender-one@example.test",
@@ -134,6 +135,7 @@ const fixture = [
         "Only four-file review plus explicit authorization may unlock ordinary export");
     }
     await reviewAllFour();
+    auditStage = "desktop_scope_change";
     const scopePicker = page.getByLabel("Export message scope");
     await scopePicker.selectOption("dates");
     assert.equal(await shareButton.isDisabled(), true,
@@ -188,6 +190,7 @@ const fixture = [
     await page.getByText(/認證秘密資料|Authentication secrets remain/).waitFor();
     // Never trigger native share or a download in this pre-handoff network test.
 
+    auditStage = "mobile_context";
     // Android-like Chromium touch/viewport smoke test, NOT a real Android phone.
     const mobile = await browser.newContext({
       viewport: { width: 393, height: 851 },
@@ -220,6 +223,7 @@ const fixture = [
       if (!ws.url().startsWith(originHost)) mobileEgressAttempts++;
     });
     try {
+      auditStage = "mobile_import";
       await mobilePage.goto(origin, { waitUntil: "networkidle" });
       const mobileLines = [
         "[LINE] Chat history with Synthetic Person One",
@@ -238,12 +242,14 @@ const fixture = [
       await mobilePage.getByRole("heading", { name: /確認這份對話|Check this chat/ }).waitFor();
       await mobilePage.getByRole("button", { name: /打開儀表板|Open dashboard/ }).click();
       await mobilePage.getByRole("button", { name: /ChatGPT 匯出|Export for ChatGPT/ }).click();
+      auditStage = "mobile_recent_selection";
       const mobileScope = mobilePage.getByLabel("Export message scope");
       assert.equal(await mobileScope.inputValue(), "recent", "Touch layout defaults to recent messages");
       assert.equal(await mobilePage.getByLabel("Recent message count").inputValue(), "25");
       await mobilePage.getByRole("button", {
         name: /產生 4 份完整檔案的本機預覽|Generate local preview of 4 exact files/,
       }).click();
+      auditStage = "mobile_recent_preview";
       const mobileViewer = mobilePage.getByRole("textbox", { name: "Full selected export file preview" });
       await mobileViewer.waitFor();
       assert.equal((await mobileViewer.inputValue()).includes("MOBILE_FABRICATED_FIRST_EXCLUDED"), false,
@@ -252,6 +258,7 @@ const fixture = [
         name: /下載 4 個檔案|download 4 files/,
       });
       assert.equal(await mobileShare.isDisabled(), true, "Mobile preview must not unlock file sharing");
+      auditStage = "mobile_expand_all";
       await mobileScope.selectOption("all");
       assert.equal(await mobileShare.isDisabled(), true, "Scope changes revoke touch-layout preview");
       await mobilePage.getByRole("button", {
@@ -291,6 +298,6 @@ const fixture = [
   }
 })().catch((error) => {
   // Never echo a URL/body containing synthetic (or future accidental) private data.
-  console.error("Browser privacy audit failed:", error && error.name || "Error");
+  console.error("Browser privacy audit failed:", error && error.name || "Error", "stage:", auditStage);
   process.exitCode = 1;
 });
