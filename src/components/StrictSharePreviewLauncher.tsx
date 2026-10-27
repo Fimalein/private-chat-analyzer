@@ -25,19 +25,19 @@ type Preview = {
   selectedCount: number;
 };
 
-const ERRORS: Record<string, [string, string]> = {
-  manual_review_required: ["Manual privacy review is required.", "須先人工審查隱私。"],
-  file_review_incomplete: ["Inspect and explicitly approve all four files.", "必須逐一審核並同意四份檔案。"],
-  preview_changed: ["The export changed. Generate and review it again.", "匯出內容已變更，請重新產生和審核。"],
-  context_review_incomplete: ["Review four contextual re-identification categories before approving.", "請先完成四項情境重新識別風險檢查。"],
-  relative_date_required: ["Relative dates are required.", "必須使用相對日期。"],
-  known_values_required: ["Enter sensitive names or phrases to protect.", "請輸入須保護的敏感名字或詞句。"],
-  empty_selection: ["All messages were omitted.", "所有訊息均已排除。"],
-  unmasked_participant: ["A sender name or ID remains unmapped. Anonymize all participants first.", "尚有發訊者名稱或 ID 未假名化，請先處理所有參與者。"],
-  unresolved_structured_pii: ["Structured identifiers remain. Complete Privacy Review or mask their sentences.", "仍有識別資訊，請完成隱私檢查或遮蔽所屬句子。"],
-  invalid_serialized_artifact: ["A file could not be inspected.", "有檔案無法檢查。"],
-  serialized_structured_pii: ["A generated file still contains a structured identifier.", "匯出檔案仍有識別資訊。"],
-  known_sensitive_value_survived: ["A protected name or phrase still appears in the export.", "保護清單中仍有詞句出現在匯出。"],
+const ERRORS: Record<string, [string, string, string]> = {
+  manual_review_required: ["Manual privacy review is required.", "須先人工審查隱私。", "手動でプライバシーを確認してください。"],
+  file_review_incomplete: ["Inspect and explicitly approve all four files.", "必須逐一審核並同意四份檔案。", "4つのファイルをすべて開いて個別に承認してください。"],
+  preview_changed: ["The export changed. Generate and review it again.", "匯出內容已變更，請重新產生和審核。", "出力内容が変わりました。もう一度プレビューして承認してください。"],
+  context_review_incomplete: ["Review four contextual re-identification categories before approving.", "請先完成四項情境重新識別風險檢查。", "文脈から人物を特定できる可能性について、4項目すべて確認してください。"],
+  relative_date_required: ["Relative dates are required.", "必須使用相對日期。", "相対日付を選んでください。"],
+  known_values_required: ["Enter sensitive names or phrases to protect.", "請輸入須保護的敏感名字或詞句。", "隠したい名前や語句を入力してください。"],
+  empty_selection: ["All messages were omitted.", "所有訊息均已排除。", "すべてのメッセージが除外されました。"],
+  unmasked_participant: ["A sender name or ID remains unmapped. Anonymize all participants first.", "尚有發訊者名稱或 ID 未假名化，請先處理所有參與者。", "送信者名やIDが匿名化されていません。参加者全員を匿名化してください。"],
+  unresolved_structured_pii: ["Structured identifiers remain. Complete Privacy Review or mask their sentences.", "仍有識別資訊，請完成隱私檢查或遮蔽所屬句子。", "識別情報が残っています。プライバシー確認または文章のマスキングをしてください。"],
+  invalid_serialized_artifact: ["A file could not be inspected.", "有檔案無法檢查。", "ファイルの内容を検査できません。"],
+  serialized_structured_pii: ["A generated file still contains a structured identifier.", "匯出檔案仍有識別資訊。", "出力ファイルに識別情報が残っています。"],
+  known_sensitive_value_survived: ["A protected name or phrase still appears in the export.", "保護清單中仍有詞句出現在匯出。", "保護対象の名前や語句が出力ファイルに残っています。"],
 };
 
 function downloadReviewedFile(file: ChatGptExportFile) {
@@ -98,8 +98,36 @@ export function StrictSharePreviewLauncher() {
 
   if (!board || board.kind === "default" || board.messages.length === 0) return null;
 
-  const zh = locale !== "en";
-  const copy = zh ? {
+  const copy = locale === "ja" ? {
+    launch: "ChatGPT向け厳格プライバシー確認（実験版）",
+    title: "共有前にマスキング・全文確認",
+    close: "閉じる",
+    info: "処理は端末内で行います。承認するまでダウンロードできません。ChatGPTへの自動送信はありません。検査に合格しても完全な匿名化を意味しません。",
+    provider: "手動でChatGPTにアップロードするとOpenAIが内容を受信します。学習への利用を望まない場合はデータコントロールの設定を確認するか、一時チャットを利用してください。一時チャットは安全管理のため最大30日保持される場合があります。このアプリではアカウント設定を確認できません。",
+    selection: "1回の確認対象メッセージ数（少なめが初期値）",
+    windowRange: "時系列での対象範囲",
+    older: "古い範囲へ",
+    newer: "新しい範囲へ",
+    sensitivity: "隠したい名前・愛称・学校・場所・固有の出来事（1行に1件）",
+    hint: "この一覧は画面内だけで保持されます。入力していない間接的な識別情報は残る可能性があります。",
+    mask: "文章単位のマスキング／メッセージ除外（元データは端末内だけで表示）",
+    action: "メッセージの処理",
+    keep: "残す（必要な文をマスキング）",
+    omit: "このメッセージを除外",
+    all: "本文全体をマスキング",
+    segment: "この文をマスキング",
+    generate: "4ファイルのローカルプレビューを生成",
+    files: "各ファイルの全文を個別に確認",
+    reviewed: "このファイルの全文を確認しました",
+    risk: "名前の表記ゆれ、珍しい出来事、人間関係、情報の組み合わせから個人が特定される可能性を理解し、4ファイルを目視確認しました。",
+    contextTitle: "複数メッセージから分かる個人情報も確認",
+    contextLabels: ["学校・勤務先・所属組織・具体的な場所","珍しい経歴・受賞・固有の出来事","家族・健康・親密な関係などの機微な文脈","発言間のつながり・日程・時刻・返信間隔"],
+    authorize: "ローカルダウンロードを明示的に承認",
+    download: "確認済みのファイルをダウンロード",
+    confirmed: "確認済みのファイルを個別に保存できます。完全匿名化を保証せず、ChatGPTへ直接送信するものではありません。",
+    selected: "残したメッセージ",
+    missing: "4ファイルの確認と残るリスクへの同意を完了してください。",
+  } : locale === "zh" ? {
     launch: "ChatGPT 隱私預覽（實驗）", title: "手動遮蔽與分享前審核",
     close: "關閉", info: "僅於本機處理。未授權前不能下載，絕不會自動上傳或傳送到 ChatGPT。檢查通過不代表完全匿名。",
     provider: "若你自行將檔案傳給 ChatGPT，OpenAI 就會收到內容。可先在資料控制中關閉模型改善用途，或選用臨時對話（可能為安全目的保留最長 30 天）。此工具無法核實你的帳戶設定；避免未審查的第三方外掛或動作。",
@@ -178,7 +206,7 @@ export function StrictSharePreviewLauncher() {
       setFileIndex(0);
     } catch (cause) {
       const code = cause instanceof StrictShareBlockedError ? cause.reason : "invalid_serialized_artifact";
-      setError((ERRORS[code] ?? ERRORS.invalid_serialized_artifact)[zh ? 1 : 0]);
+      setError((ERRORS[code] ?? ERRORS.invalid_serialized_artifact)[locale === "ja" ? 2 : locale === "zh" ? 1 : 0]);
     }
   }
 
@@ -204,7 +232,7 @@ export function StrictSharePreviewLauncher() {
     } catch (cause) {
       const code = cause instanceof StrictShareBlockedError ? cause.reason : "invalid_serialized_artifact";
       setApprovalEnabled(false);
-      setError((ERRORS[code] ?? ERRORS.invalid_serialized_artifact)[zh ? 1 : 0]);
+      setError((ERRORS[code] ?? ERRORS.invalid_serialized_artifact)[locale === "ja" ? 2 : locale === "zh" ? 1 : 0]);
     }
   }
 
@@ -223,7 +251,7 @@ export function StrictSharePreviewLauncher() {
     } catch (cause) {
       const code = cause instanceof StrictShareBlockedError ? cause.reason : "invalid_serialized_artifact";
       setApprovalEnabled(false);
-      setError((ERRORS[code] ?? ERRORS.invalid_serialized_artifact)[zh ? 1 : 0]);
+      setError((ERRORS[code] ?? ERRORS.invalid_serialized_artifact)[locale === "ja" ? 2 : locale === "zh" ? 1 : 0]);
     }
   }
 
