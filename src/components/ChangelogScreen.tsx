@@ -14,9 +14,11 @@ function formatChangelogDate(date: string, locale: "zh" | "en" | "ja") {
   const [, year, month, day] = endDate.map(Number);
   const weekdayIndex = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   const weekdays =
-    locale !== "en"
-      ? ["日", "一", "二", "三", "四", "五", "六"]
-      : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+    locale === "ja"
+      ? ["日", "月", "火", "水", "木", "金", "土"]
+      : locale === "zh"
+        ? ["日", "一", "二", "三", "四", "五", "六"]
+        : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   return `${date} (${weekdays[weekdayIndex]})`;
 }
 
