@@ -32,6 +32,11 @@ const fixture = [
     serviceWorkers: "block",
     acceptDownloads: false,
   });
+  // Existing privacy gates run under a stable English locale. The live app now
+  // defaults to Japanese, so also verify Japanese switching independently.
+  await context.addInitScript(() => {
+    window.localStorage.setItem("chatstory-locale", "en");
+  });
   const page = await context.newPage();
   const deniedExternal = [];
   const leakedToNetwork = [];
@@ -67,6 +72,12 @@ const fixture = [
 
   try {
     await page.goto(origin, { waitUntil: "networkidle" });
+    await page.getByRole("button", { name: "日本語" }).click();
+    await page.getByRole("heading", { name: /チャット履歴から/ }).waitFor();
+    assert.equal(await page.locator("html").getAttribute("lang"), "ja",
+      "Japanese locale must update the document language");
+    await page.getByRole("button", { name: "English" }).click();
+    await page.getByRole("heading", { name: /Turn your chats into/ }).waitFor();
     const input = page.locator('input[type="file"]').first();
     await input.setInputFiles({
       name: "SYNTHETIC_FIXTURE-network-audit.txt",
@@ -199,6 +210,9 @@ const fixture = [
       hasTouch: true,
       serviceWorkers: "block",
       acceptDownloads: false,
+    });
+    await mobile.addInitScript(() => {
+      window.localStorage.setItem("chatstory-locale", "en");
     });
     const mobilePage = await mobile.newPage();
     let mobileLocalRequests = 0;
