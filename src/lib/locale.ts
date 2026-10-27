@@ -4,7 +4,7 @@ export const LOCALE_COOKIE = "chatstory-locale";
 export const LOCALE_STORAGE_KEY = "chatstory-locale";
 
 export function parseLocale(value: string | undefined | null): Locale {
-  return value === "en" ? "en" : "zh";
+  return value === "en" || value === "zh" || value === "ja" ? value : "ja";
 }
 
 export function persistLocale(locale: Locale) {

@@ -16,20 +16,20 @@ import {
   type StructuredPiiKind,
 } from "@/lib/privacy";
 
-const KIND_LABELS: Record<StructuredPiiKind, [string, string]> = {
-  credential: ["憑證 / Token", "Credential / token"],
-  email: ["電子郵件", "Email"],
-  phone: ["電話番号", "Phone"],
-  url: ["URL", "URL"],
-  ipv4: ["IPv4", "IPv4"],
-  postal_code: ["郵遞區號", "Postal code"],
-  long_numeric_id: ["長數字 ID", "Long numeric ID"],
+const KIND_LABELS: Record<StructuredPiiKind, [string, string, string]> = {
+  credential: ["憑證 / Token", "Credential / token", "認証情報・トークン"],
+  email: ["電子郵件", "Email", "メールアドレス"],
+  phone: ["電話番号", "Phone", "電話番号"],
+  url: ["URL", "URL", "URL"],
+  ipv4: ["IPv4", "IPv4", "IPアドレス"],
+  postal_code: ["郵遞區號", "Postal code", "郵便番号"],
+  long_numeric_id: ["長數字 ID", "Long numeric ID", "長い数字のID"],
 };
 
 type ReviewFilter = "all" | "unreviewed" | "reviewed" | "high";
 
-function formatTimestamp(timestamp: number, locale: "zh" | "en") {
-  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "zh-TW", {
+function formatTimestamp(timestamp: number, locale: "zh" | "en" | "ja") {
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : locale === "ja" ? "ja-JP" : "zh-TW", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -69,7 +69,34 @@ function PrivacyReviewPanel({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [onClose]);
 
-  const text = locale === "en"
+  const text = locale === "ja"
+    ? {
+        title: "プライバシー確認",
+        local: "検出した値と前後の文脈は、このブラウザ内で処理します。",
+        close: "閉じる",
+        unique: "検出候補",
+        unreviewed: "未確認",
+        reviewed: "確認済み",
+        high: "未対応の高リスク",
+        occurrences: "回検出",
+        variants: "種類の原文",
+        samples: "用例を表示",
+        hideSamples: "用例を隠す",
+        field: "項目",
+        pseudonymize: "仮名に置換",
+        redact: "伏せ字にする",
+        ignore: "そのまま残す",
+        undo: "判断を取り消す",
+        replacement: "置換後の値",
+        noItems: "この条件に一致する項目はありません。",
+        rawWarning: "判断のために元の値を端末内で表示しています。",
+        reviewedAs: "選択済みの処理",
+        pseudonymized: "仮名に置換",
+        redacted: "伏せ字",
+        ignored: "変更せず保持",
+        note: "「そのまま残す」は確認済みという意味で、値を削除しません。書き出し前に処理後のデータを再検査します。",
+      }
+    : locale === "en"
     ? {
         title: "Privacy review",
         local: "Candidates and sample context stay in this browser.",
@@ -243,7 +270,7 @@ function PrivacyReviewPanel({
                   <li key={detection.id} className="rounded-2xl border border-card-border bg-white p-3 sm:p-4">
                     <div className="flex flex-wrap items-center gap-2 text-[11px]">
                       <span className="rounded-full bg-accent/10 px-2 py-0.5 font-semibold text-accent-deep">
-                        {KIND_LABELS[detection.kind][locale === "en" ? 1 : 0]}
+                        {KIND_LABELS[detection.kind][locale === "ja" ? 2 : locale === "en" ? 1 : 0]}
                       </span>
                       <span className={`rounded-full px-2 py-0.5 font-semibold ${detection.severity === "high" ? "bg-rose-100 text-rose-700" : "bg-amber-100 text-amber-700"}`}>
                         {detection.severity.toUpperCase()}
@@ -321,7 +348,7 @@ export function PrivacyReviewLauncher() {
         onClick={() => setOpen(true)}
         className={`fixed bottom-16 right-5 z-30 rounded-full px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 ${summary.unresolvedHigh > 0 ? "bg-rose-600 hover:bg-rose-700" : "bg-emerald-600 hover:bg-emerald-700"}`}
       >
-        {locale === "en" ? "Privacy review" : "隱私檢查"}{summary.unresolvedHigh > 0 ? ` · ${summary.unresolvedHigh}` : " · ✓"}
+        {locale === "ja" ? "プライバシー確認" : locale === "en" ? "Privacy review" : "隱私檢查"}{summary.unresolvedHigh > 0 ? ` · ${summary.unresolvedHigh}` : " · ✓"}
       </button>
       {open ? <PrivacyReviewPanel dashboardId={active.id} messages={active.messages} onClose={() => setOpen(false)} /> : null}
     </>

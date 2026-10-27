@@ -30,17 +30,17 @@ export function LocaleProvider({
 
   useLayoutEffect(() => {
     const saved = window.localStorage.getItem(LOCALE_STORAGE_KEY);
-    const next = saved === "en" || saved === "zh" ? saved : initialLocale;
+    const next = saved === "en" || saved === "zh" || saved === "ja" ? saved : initialLocale;
     setLocaleState(next);
     persistLocale(next);
-    document.documentElement.lang = next === "zh" ? "zh-Hant" : "en";
+    document.documentElement.lang = next === "zh" ? "zh-Hant" : next === "ja" ? "ja" : "en";
   }, [initialLocale]);
 
   const value = useMemo<LocaleContextValue>(() => {
     const setLocale = (next: Locale) => {
       setLocaleState(next);
       persistLocale(next);
-      document.documentElement.lang = next === "zh" ? "zh-Hant" : "en";
+      document.documentElement.lang = next === "zh" ? "zh-Hant" : next === "ja" ? "ja" : "en";
     };
 
     const t = (key: MessageKey, vars?: Record<string, string>) => {

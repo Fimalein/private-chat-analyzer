@@ -26,8 +26,8 @@ import { pseudonymizeMessages } from "@/lib/privacy";
 const PAGE_SIZE = 100;
 const HOUR = 60 * 60 * 1000;
 
-function formatTimestamp(timestamp: number, locale: "zh" | "en") {
-  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : "zh-TW", {
+function formatTimestamp(timestamp: number, locale: "zh" | "en" | "ja") {
+  return new Intl.DateTimeFormat(locale === "en" ? "en-US" : locale === "ja" ? "ja-JP" : "zh-TW", {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
@@ -36,26 +36,26 @@ function formatTimestamp(timestamp: number, locale: "zh" | "en") {
   }).format(new Date(timestamp));
 }
 
-function typeLabel(type: MessageType, locale: "zh" | "en") {
-  const labels: Record<MessageType, [string, string]> = {
-    text: ["文字", "Text"],
-    sticker: ["貼圖", "Sticker"],
-    image: ["照片", "Photo"],
-    video: ["影片", "Video"],
-    call: ["通話", "Call"],
-    system: ["系統", "System"],
+function typeLabel(type: MessageType, locale: "zh" | "en" | "ja") {
+  const labels: Record<MessageType, [string, string, string]> = {
+    text: ["文字", "Text", "テキスト" ],
+    sticker: ["貼圖", "Sticker", "スタンプ" ],
+    image: ["照片", "Photo", "写真" ],
+    video: ["影片", "Video", "動画" ],
+    call: ["通話", "Call", "通話" ],
+    system: ["系統", "System", "システム" ],
   };
-  return labels[type][locale === "en" ? 1 : 0];
+  return labels[type][locale === "ja" ? 2 : locale === "en" ? 1 : 0];
 }
 
-function signalLabel(signal: AnalysisSignalKind, locale: "zh" | "en") {
-  const labels: Record<AnalysisSignalKind, [string, string]> = {
-    conflict: ["衝突候選", "Conflict candidate"],
-    repair: ["修復候選", "Repair candidate"],
-    person_attack: ["人身攻擊候選", "Person-attack candidate"],
-    distance_breakup: ["疏離 / 分手候選", "Distance / breakup candidate"],
+function signalLabel(signal: AnalysisSignalKind, locale: "zh" | "en" | "ja") {
+  const labels: Record<AnalysisSignalKind, [string, string, string]> = {
+    conflict: ["衝突候選", "Conflict candidate", "衝突の可能性" ],
+    repair: ["修復候選", "Repair candidate", "関係修復の可能性" ],
+    person_attack: ["人身攻擊候選", "Person-attack candidate", "人格攻撃の可能性" ],
+    distance_breakup: ["疏離 / 分手候選", "Distance / breakup candidate", "距離を置く／別れの可能性" ],
   };
-  return labels[signal][locale === "en" ? 1 : 0];
+  return labels[signal][locale === "ja" ? 2 : locale === "en" ? 1 : 0];
 }
 
 function messageText(message: ChatMessage) {
@@ -71,7 +71,7 @@ function ExplorerPanel({
   onClose,
 }: {
   messages: ChatMessage[];
-  locale: "zh" | "en";
+  locale: "zh" | "en" | "ja";
   onClose: () => void;
 }) {
   const [filters, setFilters] = useState<MessageExplorerFilters>(
@@ -118,7 +118,35 @@ function ExplorerPanel({
   }
 
   const text =
-    locale === "en"
+    locale === "ja"
+      ? {
+          title: "メッセージ検索",
+          local: "検索条件と分析候補の抽出は端末内で行います。",
+          search: "メッセージまたは送信者を検索",
+          allSenders: "すべての送信者",
+          allTypes: "すべての種類",
+          replyGap: "返信までの間隔",
+          anyGap: "指定なし",
+          signal: "分析候補",
+          anySignal: "すべて",
+          signalDisclaimer: "分析候補は単純なヒューリスティックによる目印です。意図・攻撃性・関係性についての確定的な判定ではありません。",
+          sort: "並び順",
+          oldest: "古い順",
+          newest: "新しい順",
+          gapSort: "返信間隔が長い順",
+          from: "開始日",
+          to: "終了日",
+          clear: "クリア",
+          results: "件",
+          context: "前後の会話",
+          back: "検索結果に戻る",
+          previous: "前へ",
+          next: "次へ",
+          close: "閉じる",
+          noResults: "条件に一致するメッセージはありません。",
+          gap: "間隔",
+        }
+      : locale === "en"
       ? {
           title: "Message explorer",
           local: "Filters and candidate signals run locally in this browser.",
@@ -443,7 +471,7 @@ export function MessageExplorerLauncher() {
         onClick={() => setOpen(true)}
         className="fixed bottom-5 right-5 z-30 rounded-full bg-accent-deep px-4 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-accent-dim"
       >
-        {locale === "en" ? "Explore messages" : "搜尋訊息"}
+        {locale === "ja" ? "メッセージ検索" : locale === "en" ? "Explore messages" : "搜尋訊息"}
       </button>
       {open ? (
         <ExplorerPanel
