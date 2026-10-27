@@ -9,7 +9,8 @@ This is a **public URL** to a **test-only** copy of the browser application. No 
 3. Open https://github.com/Fimalein/private-chat-analyzer/actions/workflows/pages.yml
 4. Click **Run workflow**; choose branch `feat/strict-chatgpt-sharing-preflight`, then click **Run workflow**. If the initial feature-branch push run failed because Pages was disabled, rerun it instead.
 5. Confirm the **Deploy ChatStory synthetic-only preview (GitHub Pages)** run has a successful build and deploy job. Use the **page_url** shown by that deployment job; for the `Fimalein/private-chat-analyzer` project Pages, the *expected* URL structure is `https://fimalein.github.io/private-chat-analyzer/`. This is not proof the address is currently live.
-6. Save the verified URL in browser bookmarks. Future pushes on that feature branch trigger preview deployment without local npm/git work. This URL serves **code** publicly; imported messages must stay local in browser memory.
+6. The feature branch uses the separate `pages-synthetic-preview` Actions environment, preserving any `github-pages` environment rules reserved for `main`.
+7. Save the verified URL in browser bookmarks. Future pushes on that feature branch trigger preview deployment without local npm/git work. This URL serves **code** publicly; imported messages must stay local in browser memory.
 
 ## Verified design / protections
 

@@ -44,8 +44,10 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     needs: build
+    # Keep the default protected "github-pages" deployment environment untouched.
+    # This synthetic-only branch preview uses its own environment.
     environment:
-      name: github-pages
+      name: pages-synthetic-preview
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - id: deployment
