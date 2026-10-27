@@ -68,7 +68,36 @@ export function ChatGptExportLauncher() {
         : { mode: "exact" };
 
   const text =
-    locale === "en"
+    locale === "ja"
+      ? {
+          launch: "ChatGPT用に書き出す",
+          title: "ChatGPT分析用ファイル",
+          local: "ファイルはこのブラウザ内で作成します。",
+          close: "閉じる",
+          high: "未処理の高リスク識別情報",
+          medium: "未処理の中リスク識別情報",
+          blocked: "高リスクの識別情報が匿名化または削除されるまで書き出せません。「プライバシー確認」を完了してください。",
+          warning: "中リスク情報は自動的に書き出しを停止しません。URL、IPアドレス、郵便番号、長い識別番号などから個人を特定できないか確認してください。",
+          ready: "現在のマスキング設定適用後、対応する高リスクの構造化識別情報は検出されませんでした。",
+          datePrivacy: "日時の扱い",
+          exactTitle: "元の日時を維持",
+          exactBody: "時系列の精度を保てますが、実際の日付が書き出されます。",
+          shiftTitle: "週単位で日付を移動",
+          shiftBody: "すべての日時を同じ週数だけ移動します。順序・曜日・経過時間を保ち、移動量自体は出力しません。",
+          relativeTitle: "相対日付と時刻",
+          relativeBody: "日付を DAY_0001、DAY_0002 などに置き換えます。時刻と時間間隔は保持します。",
+          weeks: "移動する週数",
+          random: "ランダム",
+          invalidShift: "-5200〜5200の間で、0以外の整数週を指定してください。",
+          explicit: "日付の匿名化は任意です。選んだ方式は出力ファイルに記録されます。",
+          contents: "出力ファイル",
+          export: "4ファイルを共有／ダウンロード",
+          working: "生成中…",
+          done: "ファイルを生成しました。",
+          error: "書き出しに失敗しました。ファイルは共有されていません。",
+          caveat: "自動検出は完全な匿名化を保証しません。名前・場所・日時・会話の内容から人物が分かる場合があります。必ず目視確認してください。",
+        }
+      : locale === "en"
       ? {
           launch: "Export for ChatGPT",
           title: "ChatGPT analysis pack",

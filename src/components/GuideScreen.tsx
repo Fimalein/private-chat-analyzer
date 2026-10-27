@@ -113,7 +113,7 @@ function LineGuide() {
 
       <section className="mt-4 rounded-2xl border border-card-border bg-card px-4 py-4 sm:px-5 sm:py-5">
         <h2 className="flex items-center gap-2 text-base font-bold text-accent-deep">
-          <NoticeIcon label={locale === "en" ? "Notice" : "注意"} />
+          <NoticeIcon label={locale === "ja" ? "注意" : locale === "en" ? "Notice" : "注意"} />
           {copy.pcTitle}
         </h2>
         <p className="mt-3 text-sm leading-6 text-foreground">{copy.pcNote}</p>
@@ -186,7 +186,7 @@ function TelegramGuide() {
 
       <section className="mt-4 rounded-2xl border border-card-border bg-card px-4 py-4 sm:px-5 sm:py-5">
         <h2 className="flex items-center gap-2 text-base font-bold text-accent-deep">
-          <NoticeIcon label={locale === "en" ? "Notice" : "注意"} />
+          <NoticeIcon label={locale === "ja" ? "注意" : locale === "en" ? "Notice" : "注意"} />
           {copy.noteTitle}
         </h2>
         <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm leading-6 text-foreground">
@@ -244,7 +244,7 @@ function MetaGuide() {
 
       <section className="mt-4 rounded-2xl border border-card-border bg-card px-4 py-4 sm:px-5 sm:py-5">
         <h2 className="flex items-center gap-2 text-base font-bold text-accent-deep">
-          <NoticeIcon label={locale === "en" ? "Notice" : "注意"} />
+          <NoticeIcon label={locale === "ja" ? "注意" : locale === "en" ? "Notice" : "注意"} />
           {copy.noticeTitle}
         </h2>
         <div className="mt-3 space-y-1.5 text-sm leading-6 text-foreground">
@@ -271,7 +271,7 @@ function MetaGuide() {
             </span>
             <div className="min-w-0 flex-1 rounded-xl bg-accent/10 px-3 py-2.5">
               <p className="flex items-center gap-1.5 font-semibold text-accent-deep">
-                <NoticeIcon label={locale === "en" ? "Notice" : "特別注意"} />
+                <NoticeIcon label={locale === "ja" ? "重要な注意" : locale === "en" ? "Notice" : "特別注意"} />
                 {copy.exportOptionsTitle}
               </p>
               <ul className="mt-2 list-disc space-y-1.5 pl-5">

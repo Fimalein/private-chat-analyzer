@@ -70,7 +70,7 @@ export function Heatmap({
     year === currentYear ? shiftYears(today, -1) : new Date(year, 0, 1);
   const windowEnd =
     year === currentYear ? today : new Date(year, 11, 31);
-  const dateLocale = locale === "en" ? "en" : "zh-Hant";
+  const dateLocale = locale === "ja" ? "ja-JP" : locale === "en" ? "en" : "zh-Hant";
   const countByDate = useMemo(
     () => new Map(daily.map((item) => [item.date, item.count])),
     [daily],
@@ -93,7 +93,7 @@ export function Heatmap({
   );
   const scrollerRef = useRef<HTMLDivElement>(null);
   const narrow = useNarrow();
-  const numberLocale = uiLocale === "en" ? "en" : "zh";
+  const numberLocale = uiLocale === "en" ? "en" : uiLocale === "ja" ? "ja" : "zh";
   const weekCount = months.reduce((sum, month) => sum + month.weeks.length, 0);
 
   useLayoutEffect(() => {

@@ -98,7 +98,7 @@ function formatMessageRange(
 }
 
 function formatReviewDate(timestamp: number, locale: string) {
-  return new Intl.DateTimeFormat(locale === "en" ? "en" : "zh-Hant", {
+  return new Intl.DateTimeFormat(locale === "en" ? "en" : locale === "ja" ? "ja-JP" : "zh-Hant", {
     year: "numeric",
     month: "short",
     day: "numeric",

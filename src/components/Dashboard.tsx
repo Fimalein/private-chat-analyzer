@@ -44,7 +44,7 @@ export function Dashboard() {
     [displayBoard],
   );
   const data = analysis ?? demoAnalysis;
-  const numberLocale = locale === "en" ? "en" : "zh";
+  const numberLocale = locale === "en" ? "en" : locale === "ja" ? "ja" : "zh";
   const [anonymous, setAnonymous] = useState(false);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);

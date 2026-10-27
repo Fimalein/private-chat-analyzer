@@ -1,6 +1,6 @@
 import { Providers } from "@/components/Providers";
 import type { Metadata, Viewport } from "next";
-import { Noto_Sans_TC, Nunito, Zen_Maru_Gothic } from "next/font/google";
+import { Noto_Sans_JP, Nunito, Zen_Maru_Gothic } from "next/font/google";
 import "./globals.css";
 
 const nunito = Nunito({
@@ -10,7 +10,7 @@ const nunito = Nunito({
   display: "swap",
 });
 
-const notoSans = Noto_Sans_TC({
+const notoSans = Noto_Sans_JP({
   variable: "--font-noto",
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
@@ -28,16 +28,16 @@ const titleFont = Zen_Maru_Gothic({
 
 const siteUrl =
   process.env.GITHUB_PAGES === "true"
-    ? "https://f964966828.github.io"
+    ? "https://fimalein.github.io/private-chat-analyzer/"
     : "http://localhost:3000";
 
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "ChatStory",
-  description: "把聊天紀錄變成可以翻看的小故事",
+  description: "トーク履歴を端末内で分析・可視化するChatStory。個人情報を含む履歴を共有する前に、必ず内容を確認してください。",
   openGraph: {
     type: "website",
-    locale: "zh_TW",
+    locale: "ja_JP",
     siteName: "ChatStory",
   },
   twitter: {
@@ -54,11 +54,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html
-      lang="zh-Hant"
+      lang="ja"
       className={`${nunito.variable} ${notoSans.variable} ${titleFont.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <Providers initialLocale="zh">{children}</Providers>
+        <Providers initialLocale="ja">{children}</Providers>
       </body>
     </html>
   );
