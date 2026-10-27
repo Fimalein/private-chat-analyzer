@@ -8,13 +8,13 @@ import { SiteFooter } from "@/components/SiteFooter";
 import { CHANGELOG, CHANGELOG_PAGE_SIZE } from "@/lib/changelog";
 import Link from "next/link";
 
-function formatChangelogDate(date: string, locale: "zh" | "en") {
+function formatChangelogDate(date: string, locale: "zh" | "en" | "ja") {
   const endDate = date.match(/(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
   if (!endDate) return date;
   const [, year, month, day] = endDate.map(Number);
   const weekdayIndex = new Date(Date.UTC(year, month - 1, day)).getUTCDay();
   const weekdays =
-    locale === "zh"
+    locale !== "en"
       ? ["日", "一", "二", "三", "四", "五", "六"]
       : ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
   return `${date} (${weekdays[weekdayIndex]})`;
@@ -78,7 +78,7 @@ export function ChangelogScreen() {
                 {formatChangelogDate(entry.date, locale)}
               </p>
               <ul className="mt-3 list-disc space-y-1.5 pl-5 text-sm leading-6 text-foreground">
-                {(locale === "en" ? entry.en : entry.zh).map((item) => (
+                {(locale === "ja" ? entry.ja : locale === "en" ? entry.en : entry.zh).map((item) => (
                   <li key={item}>{item}</li>
                 ))}
               </ul>

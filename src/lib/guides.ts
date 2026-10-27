@@ -13,6 +13,17 @@ export type LineGuideCopy = {
 };
 
 export const LINE_GUIDE: Record<Locale, LineGuideCopy> = {
+  ja: {
+    needTitle: "はじめに",
+    needItems: ["現在対応しているのは2人のトークだけです。グループチャットは未対応です。","ファイルは端末のブラウザ内で解析します。アプリ側で自動的にサーバーへ送信しません。"],
+    phoneTitle: "スマートフォン（iPhone / Android）",
+    phoneSteps: ["分析したい2人のLINEトークを開きます。","右上のメニュー（≡ または ⋮）から「設定」を開きます。","「トーク履歴を送信」を選びます。","「ファイル」やダウンロード先など、テキストを保存できる方法を選びます。","このサイトに戻り、保存した .txt ファイルを選択するかドラッグ＆ドロップします。"],
+    saveTitle: "保存先は？",
+    saveBody: "iPhoneなら「ファイル」アプリ、Androidなら「ダウンロード」などに保存してください。拡張子が .txt のテキストファイルを読み込みます。",
+    pcTitle: "PC版LINE（Windows / Mac）",
+    pcNote: "PC版からも書き出せますが、形式によっては読み取りに失敗する場合があります。うまくいかないときはスマートフォンから .txt を書き出してください。",
+    officialHref: "https://help.line.me/line/smartphone/sp?contentId=20007388&lang=ja",
+  },
   zh: {
     needTitle: "開始前",
     needItems: [
@@ -84,6 +95,27 @@ export type MetaGuideCopy = {
 };
 
 export const META_GUIDE: Record<Locale, MetaGuideCopy> = {
+  ja: {
+    needTitle: "はじめに",
+    needItems: ["現在対応しているのは2人のチャットです。","データは端末のブラウザ内で解析します。","HTML形式ではなくJSON形式で書き出してください。","Metaでは1つの会話だけを取り出せない場合があります。書き出したアーカイブから対象の会話を選んでください。"],
+    exportTitle: "アカウントセンターから書き出す",
+    exportStartSteps: ["Messenger、Instagram、Threadsのいずれかを開きます。","設定 → アカウントセンター → あなたの情報とアクセス許可 → 情報をエクスポート、の順に進みます。","エクスポートを作成し、対象のプロフィールを選択します。","端末へのエクスポートを選びます。"],
+    exportOptionsTitle: "書き出し設定の注意点",
+    exportOptions: ["可能なら「メッセージ」だけを選択します。","必要な期間だけ指定すればデータ量を減らせます。","形式は必ずJSONを選んでください。HTMLは読み込めません。","メディアの画質は低くても構いません。このアプリは写真そのものを分析しません。"],
+    exportEndSteps: ["書き出しを開始します。準備完了まで時間がかかる場合があります。","ZIPをダウンロードして展開し、対象チャットのJSONファイルを読み込みます。"],
+    fileTitle: "どのファイルを読み込む？",
+    fileLead: "ZIPファイルはそのまま読み込めません。解凍後に messages → inbox などのフォルダを探します。フォルダ名は環境によって異なる場合があります。",
+    fileChatFolder: "チャットフォルダ",
+    fileFindTitle: "会話相手の名前からファイルを探す",
+    fileFindItems: ["inbox内の各フォルダが1つのチャットに対応します。","中国語の名前はピンインに変換され、数字が続くことがあります。下の変換ツールが参考になります。","英語の名前は小文字になり、空白がアンダースコアに変換されることがあります。","見つからないときは archived_threads、message_requests、e2ee_cutover なども確認してください。","目的のフォルダにある message_1.json を読み込みます。長い会話には message_2.json などがある場合があります。"],
+    pinyinTitle: "中国語の名前をピンインに変換",
+    pinyinLead: "チャットに表示された中国語の名前を入力すると、フォルダ名に使われるピンイン表記の参考値を表示します。",
+    pinyinResult: "変換結果",
+    pinyinFolder: "{slug}_（数字）",
+    noticeTitle: "エクスポートはスマホでも申請できます",
+    noticeItems: ["アプリの設定からアカウントセンターを開けます。","アーカイブのダウンロードと解凍はPCの方が操作しやすい場合があります。"],
+    officialHref: "https://www.facebook.com/help/212802592074644",
+  },
   zh: {
     needTitle: "開始前",
     needItems: [
@@ -200,6 +232,17 @@ export type TelegramGuideCopy = {
 };
 
 export const TELEGRAM_GUIDE: Record<Locale, TelegramGuideCopy> = {
+  ja: {
+    needTitle: "はじめに",
+    needItems: ["2人のトークのみ対応しています。グループ・チャンネルは未対応です。","内容は端末内で解析します。","Telegram DesktopからJSON形式で書き出してください。HTMLには対応していません。"],
+    desktopTitle: "Telegram Desktopから書き出す",
+    desktopSteps: ["2人のトークを開きます。","右上の ⋮ メニューから「Export chat history（チャット履歴をエクスポート）」を選びます。","Machine-readable JSON形式を選びます。","書き出したJSONをChatStoryのトップ画面から読み込みます。"],
+    formatTitle: "書き出しの設定",
+    formatItems: ["必要なのはJSONのみです。写真・動画などのメディアを追加する必要はありません。"],
+    noteTitle: "注意",
+    noteItems: ["チャット履歴の書き出しにはデスクトップ版を利用してください。","2人以外のチャットは解析できません。"],
+    officialHref: "https://bugs.telegram.org/c/60/6",
+  },
   zh: {
     needTitle: "開始前",
     needItems: [

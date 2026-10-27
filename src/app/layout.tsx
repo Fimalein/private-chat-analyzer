@@ -58,7 +58,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${nunito.variable} ${notoSans.variable} ${titleFont.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-background text-foreground">
-        <Providers initialLocale="zh">{children}</Providers>
+        <Providers initialLocale="ja">{children}</Providers>
       </body>
     </html>
   );

@@ -50,7 +50,7 @@ export function SiteHeader({
                   : "text-muted hover:bg-accent/10 hover:text-accent-deep"
               }`}
             >
-              <StableLabel zh="首頁" en="Home" />
+              <StableLabel zh="首頁" en="Home" ja="ホーム" />
             </button>
             <button
               type="button"
@@ -61,7 +61,7 @@ export function SiteHeader({
                   : "text-muted hover:bg-accent/10 hover:text-accent-deep"
               }`}
             >
-              <StableLabel zh="儀表板" en="Dashboard" />
+              <StableLabel zh="儀表板" en="Dashboard" ja="ダッシュボード" />
             </button>
           </nav>
         </div>
@@ -82,16 +82,16 @@ export function SiteHeader({
               }, 50);
             }}
           >
-            {locale === "zh" ? `「${t("faqTitle")}」` : `"${t("faqTitle")}"`}
+            {locale === "en" ? `"${t("faqTitle")}"` : `「${t("faqTitle")}」`}
           </button>
-          {locale === "zh" ? "。" : "."}
+          {locale === "en" ? "." : "。"}
         </p>
       </div>
     </header>
   );
 }
 
-function StableLabel({ zh, en }: { zh: string; en: string }) {
+function StableLabel({ zh, en, ja }: { zh: string; en: string; ja: string }) {
   const { locale } = useLocale();
 
   return (
@@ -102,8 +102,11 @@ function StableLabel({ zh, en }: { zh: string; en: string }) {
       <span className="invisible col-start-1 row-start-1 whitespace-nowrap" aria-hidden>
         {en}
       </span>
+      <span className="invisible col-start-1 row-start-1 whitespace-nowrap" aria-hidden>
+        {ja}
+      </span>
       <span className="col-start-1 row-start-1 whitespace-nowrap">
-        {locale === "zh" ? zh : en}
+        {locale === "ja" ? ja : locale === "zh" ? zh : en}
       </span>
     </span>
   );

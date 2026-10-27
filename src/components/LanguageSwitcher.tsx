@@ -9,6 +9,19 @@ export function LanguageSwitcher() {
     <div className="flex items-center gap-1 rounded-full border border-card-border bg-white p-1 text-xs font-medium">
       <button
         type="button"
+        onClick={() => setLocale("ja")}
+        aria-pressed={locale === "ja"}
+        className={`rounded-full px-2 py-1 transition sm:px-3 sm:py-1.5 ${
+          locale === "ja"
+            ? "bg-accent text-white shadow-sm"
+            : "text-muted hover:bg-accent/10 hover:text-accent-deep"
+        }`}
+      >
+        <span className="sm:hidden">日</span>
+        <span className="hidden sm:inline">{t("langJa")}</span>
+      </button>
+      <button
+        type="button"
         onClick={() => setLocale("zh")}
         className={`rounded-full px-2 py-1 transition sm:px-3 sm:py-1.5 ${
           locale === "zh"
