@@ -1,8 +1,11 @@
-name: Deploy GitHub Pages
+name: Deploy ChatStory synthetic-only preview (GitHub Pages)
 
+# This branch is deliberately a public TEST preview, never a production privacy release.
+# The existing default-branch Pages workflow remains the production deployment path.
 on:
   push:
-    branches: [main]
+    branches:
+      - feat/strict-chatgpt-sharing-preflight
   workflow_dispatch:
 
 permissions:
@@ -24,21 +27,26 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run build
+      - run: npm run privacy:guard
+      - run: npm test
+      - run: npm audit --omit=dev --audit-level=high
+      - name: Build static preview under the actual repository name
+        run: npm run build
         env:
           GITHUB_PAGES: "true"
-      - name: Add .nojekyll
+          NEXT_PUBLIC_PREVIEW_ONLY: "true"
+      - name: Disable Jekyll
         run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3
         with:
           path: out
 
   deploy:
+    runs-on: ubuntu-latest
+    needs: build
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
-    needs: build
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4

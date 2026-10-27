@@ -33,6 +33,13 @@ export function HomeView() {
 
   return (
     <div className="flex min-h-full flex-1 flex-col">
+      {process.env.NEXT_PUBLIC_PREVIEW_ONLY === "true" ? (
+        <div role="alert" className="border-b border-amber-300 bg-amber-50 px-4 py-3 text-center text-sm leading-6 text-amber-950">
+          <strong>公開テスト版 / Synthetic-data preview.</strong>{" "}
+          実際の私的なトーク履歴はまだ読み込まないでください。架空データ専用の検証環境です。
+          Privacy protection and unbiased analysis have not been independently validated.
+        </div>
+      ) : null}
       <SiteHeader
         view={view === "review" ? "landing" : view}
         onShowLanding={showLanding}
