@@ -1,0 +1,28 @@
+name: Observer regression (synthetic only)
+
+on:
+  push:
+    branches:
+      - feat/strict-chatgpt-sharing-preflight
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Ensure all tracked fixtures are fabricated
+        run: npm run privacy:guard
+      - name: Install dependencies
+        run: npm ci
+      - name: Observer export and role-swap regression tests
+        run: npm test -- tests/export/observer-cross-file-regression.test.ts tests/export/observer-blinding.test.ts tests/export/observer-fairness-eval.test.ts
+      - name: Validate production static build
+        run: npm run build
