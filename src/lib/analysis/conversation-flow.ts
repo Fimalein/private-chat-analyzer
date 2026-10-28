@@ -121,13 +121,14 @@ export function deriveConversationFlow(messages: readonly ChatMessage[]): Conver
     };
   });
   const weeks: FlowWeek[] = [];
+  const timestampById = new Map(sorted.map(m => [m.id, m.timestamp]));
   if (sorted.length) {
     const lastStart = new Date(weekKey(sorted.at(-1)!.timestamp) + "T12:00:00");
     const byWeek = new Map<string, Map<string, number[]>>();
     for (const e of replies) {
-      const original = sorted.find(m => m.id === e.messageId);
-      if (!original) continue;
-      const week = weekKey(original.timestamp);
+      const timestamp = timestampById.get(e.messageId);
+      if (timestamp === undefined) continue;
+      const week = weekKey(timestamp);
       if (!byWeek.has(week)) byWeek.set(week, new Map());
       const bucket = byWeek.get(week)!;
       if (!bucket.has(e.senderId)) bucket.set(e.senderId, []);
