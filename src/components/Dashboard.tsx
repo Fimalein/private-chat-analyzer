@@ -17,6 +17,7 @@ import {
   type StatCardData,
 } from "@/components/dashboard/StatCards";
 import { TimelineChart } from "@/components/dashboard/TimelineChart";
+import { ConversationFlowCard } from "@/components/dashboard/ConversationFlowCard";
 import { WhoMorePie } from "@/components/dashboard/WhoMorePie";
 import { formatDayKey } from "@/components/dashboard/date-utils";
 import { EXPORT_IDLE_EVENT } from "@/components/dashboard/export-idle";
@@ -501,6 +502,17 @@ export function Dashboard() {
           format={(value) => formatNumber(value, numberLocale)}
         />
       </section>
+
+      {analysis && displayBoard?.kind !== "default" ? (
+        <ConversationFlowCard
+          messages={displayBoard.messages}
+          locale={locale}
+          anonymous={anonymous}
+          usernameA={displayBoard.usernameA}
+          usernameB={displayBoard.usernameB}
+          onJumpDay={jumpToChatDay}
+        />
+      ) : null}
 
       <section
         data-word-cloud-section=""
