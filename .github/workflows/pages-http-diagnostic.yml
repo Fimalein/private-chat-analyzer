@@ -1,0 +1,34 @@
+name: Diagnose public ChatStory Pages URL
+on:
+  push:
+    branches:
+      - diagnostic/pages-http-20261028
+permissions:
+  contents: read
+jobs:
+  check-site:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check DNS, live HTML, and first static asset
+        shell: bash
+        run: |
+          set -euo pipefail
+          host=fimalein.github.io
+          url=https://fimalein.github.io/private-chat-analyzer/
+          echo "DNS:"
+          getent ahostsv4 "$host" | head -2 || true
+          echo "HTTP response:"
+          curl -L -sS --max-time 25 -D /tmp/site.headers -o /tmp/site.html -w "HTTP %{http_code}, final %{url_effective}, content type %{content_type}\n" "$url"
+          sed -n '1,20p' /tmp/site.headers
+          echo "HTML bytes: $(wc -c </tmp/site.html)"
+          grep -oq '<html' /tmp/site.html || { echo "HTML document not found"; exit 1; }
+          grep -oq 'チャット履歴' /tmp/site.html || { echo "Japanese content not found"; exit 1; }
+          asset=$(grep -oE '/private-chat-analyzer/_next/static/[^" ]+\.css' /tmp/site.html | head -1 || true)
+          if test -n "$asset"; then
+            echo "First CSS asset: $asset"
+            curl -L -sS --fail --max-time 25 -o /dev/null -w "CSS HTTP %{http_code}\n" "https://$host$asset"
+          else
+            echo "No CSS asset path found in HTML"
+          fi
+          echo "PASS: live Japanese page reachable from GitHub runner"
