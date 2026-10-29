@@ -138,7 +138,7 @@ export function ChatGptExportLauncher() {
           weeks: "移動する週数",
           random: "ランダム",
           invalidShift: "-5200〜5200の間で、0以外の整数週を指定してください。",
-          explicit: "日付の匿名化は任意です。選んだ方式は出力ファイルに記録されます。",
+          explicit: "初期設定は相対日付です。必要な場合のみ元の日時へ変更できます。選んだ方式は出力ファイルに記録されます。", 
           contents: "出力ファイル",
           export: "承認済みZIPを保存（外部送信なし）",
           share: "端末の共有メニュー",
@@ -146,6 +146,7 @@ export function ChatGptExportLauncher() {
           done: "共有が完了したか、ZIP保存を開始しました。ブラウザのダウンロードを確認してください。",
           error: "書き出しに失敗しました。ファイルは共有されていません。",
           caveat: "自動検出は完全な匿名化を保証しません。名前・場所・日時・会話の内容から人物が分かる場合があります。必ず目視確認してください。",
+          mediaCaveat: "画像・動画・スタンプの画像そのもの、通話音声、リンク先のプレビュー、未対応の添付ファイルは取り込み・検査していません。出力されるのは取り込めた文字列や種類・通話時間などの情報だけです。", 
           providerTitle: "共有先を選択（アプリから自動送信しません）",
           providerTemporary: "ChatGPT 一時チャット",
           providerRegular: "ChatGPT 通常チャット",
@@ -202,7 +203,7 @@ export function ChatGptExportLauncher() {
           random: "Randomize",
           invalidShift: "Use a non-zero whole number of weeks between -5200 and 5200.",
           explicit:
-            "Date anonymization is optional and never enabled silently. The selected mode is recorded in every export pack.",
+            "Relative days are selected by default. Keep exact timestamps only if needed; the selected date mode is recorded in every export pack.",
           contents: "Files",
           export: "Save approved ZIP locally",
           share: "Device share menu",
@@ -211,6 +212,7 @@ export function ChatGptExportLauncher() {
           error: "Export failed. Nothing was shared.",
           caveat:
             "Detection is not a guarantee of complete anonymization. Names, places, dates, and contextual clues may still need manual review.",
+          mediaCaveat: "Image/video/sticker media, call audio, rich link previews, and unsupported attachments are not imported or scanned. Only available text, placeholders, and metadata are exported.",
           providerTitle: "Intended recipient (the app does not send files automatically)",
           providerTemporary: "ChatGPT Temporary Chat",
           providerRegular: "ChatGPT regular chat",
@@ -259,7 +261,7 @@ export function ChatGptExportLauncher() {
           weeks: "週數位移",
           random: "隨機",
           invalidShift: "請使用 -5200 到 5200 之間、非 0 的整數週數。",
-          explicit: "日期匿名化是選用功能，不會默默啟用；所選模式會記錄在匯出套件中。",
+          explicit: "預設使用相對日期；只有需要時才選擇原始時間。所選模式會記錄在每份匯出套件中。", 
           contents: "檔案",
           export: "儲存核准的 ZIP（僅本機）",
           share: "裝置分享選單",
@@ -267,6 +269,7 @@ export function ChatGptExportLauncher() {
           done: "已完成分享或啟動 ZIP 下載，請檢查瀏覽器下載。",
           error: "匯出失敗，沒有分享任何資料。",
           caveat: "偵測不到不等於完全匿名。姓名、地點、日期與上下文線索仍可能需要人工檢查。",
+          mediaCaveat: "圖片、影片、貼圖原檔、通話音訊、連結預覽與未支援的附件均未匯入或掃描。只匯出可用的文字、占位文字與中繼資料。", 
           providerTitle: "預定收件方（本工具不會自動傳送）",
           providerTemporary: "ChatGPT 臨時對話",
           providerRegular: "ChatGPT 一般對話",
@@ -618,6 +621,7 @@ export function ChatGptExportLauncher() {
             </div>
 
             <p className="mt-3 text-[11px] leading-5 text-muted">{text.caveat}</p>
+            <p className="mt-2 text-[11px] leading-5 text-muted">{text.mediaCaveat}</p>
             <div className="mt-4 rounded-xl border border-card-border p-3 text-xs">
               <label className="block font-semibold text-accent-deep">
                 {text.providerTitle}
