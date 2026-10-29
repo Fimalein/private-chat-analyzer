@@ -19,7 +19,7 @@ A public **source-code** repository is compatible with this goal, but source cha
 | OpenAI API | Not used for model training by default, subject to organization sharing settings | Inputs/outputs may be kept up to **30 days** for abuse monitoring, with endpoint exceptions | Zero Data Retention is an eligibility-dependent arrangement, not assumed for a personal API key. |
 | Other LLM providers / external GPT actions | **Provider-specific** | **Provider-specific** | Read the *actual receiving service's* current terms and data controls. External actions may transfer data to another company. |
 
-Sources (checked 2026-10-24):
+Sources (rechecked 2026-10-29):
 - [ChatGPT Data controls](https://help.openai.com/en/articles/7730893-data-controls-in-chatgpt)
 - [Temporary chat](https://help.openai.com/en/articles/8914046-temporary-chat-in-chatgpt)
 - [Chat and file retention](https://help.openai.com/en/articles/8983778-chat-and-file-retention-in-chatgpt)
@@ -33,6 +33,8 @@ Sources (checked 2026-10-24):
 **Strong defaults with contextual choice:** mask phone numbers, email addresses, addresses and direct identity markers of participants. Preserve stable **pseudonyms** across the excerpt, because relationships, chronology and exact wording often matter to analysis. Permit the user to deliberately keep non-secret, contextually useful facts after a clear warning, rather than requiring *proof of irreversibility or anonymity*. Rare events, affiliations and the ability to infer identity are **residual disclosure risks**, not equivalent to automatically posting the content publicly.
 
 **Purpose-driven minimization, not arbitrary tiny transcript limits:** use a locally selected message interval or topic-relevant excerpts. More context may be necessary for longitudinal relationship analysis. Selection size is a *privacy/utility trade-off*, not a security guarantee. The 5/10/25-window preview in Draft PR #47 is only a first-step UI and may be inadequate for actual analysis; do not claim the entire user's goal is supported yet.
+
+**Blind-observer mode at the provider:** as of 2026-10-29, ChatGPT Temporary Chat offers personalized and unpersonalized modes. A personalized Temporary Chat can still use existing memory, custom instructions and plugins; merely hiding uploader metadata in the ZIP is not enough for an independent observer. Recommend a fresh **unpersonalized** Temporary Chat with no disclosure of which speaker made the request, while noting that this reduces but cannot prove absence of bias. The local web app cannot select or verify the provider setting. Avoid relying on an unrelated existing conversation with prior context.
 
 **Provider handoff UI:** show a concise receiver-specific notice at the moment of download/share: where it goes, whether the app is uploading automatically, training opt-out guidance, retention, third-party-action caution and links to current policy. The app must not claim to have verified the user's ChatGPT account settings or Temporary Chat status; it has no access to those controls. The user must actively choose any subsequent transfer.
 
