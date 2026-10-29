@@ -1,0 +1,30 @@
+name: Observer regression (synthetic only)
+
+on:
+  push:
+    branches:
+      - feat/strict-chatgpt-sharing-preflight
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Ensure all tracked fixtures are fabricated
+        run: npm run privacy:guard
+      - name: Install dependencies
+        run: npm ci
+      - name: Full synthetic test suite (including reviewed four-file ZIP acceptance)
+        run: npm test
+      - name: Validate production static build
+        run: npm run build
+      - name: Verify production dependency audit
+        run: npm audit --omit=dev --audit-level=high

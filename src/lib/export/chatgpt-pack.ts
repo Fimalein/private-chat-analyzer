@@ -1,5 +1,8 @@
 import { attachReplyGaps, deriveReplyGaps } from "@/lib/analysis/reply-gaps";
 import type { ChatMessage } from "@/lib/chat-types";
+import { neutralizeExportSpeakers } from "@/lib/export/observer-speakers";
+import { OBSERVER_ANALYSIS_INSTRUCTIONS } from "@/lib/export/observer-instructions";
+import { assertNoExportedSecrets, auditUnmaskedSecrets, SecretExportBlockedError } from "@/lib/privacy/secret-guard";
 import {
   pseudonymizeMessages,
   scanStructuredPii,
@@ -179,8 +182,10 @@ function renderTxt(
 ) {
   const time = makeTimeProjection(messages, dateMode);
   const lines: string[] = [
-    "# Anonymized chat transcript",
-    "# Generated locally. Full transcript is primary evidence for analysis.",
+    "# Locally pseudonymized chat excerpt (not guaranteed anonymous)",
+    "# Generated locally. Selected excerpt is primary evidence within its scope; earlier/later context may be missing.",
+    "# All speaker labels are neutral; which speaker (if any) supplied this transcript is deliberately unspecified.",
+    "# Media limitation: only imported text/captions/placeholders and metadata are exported. Image/video/sticker files, call audio, rich link previews, and unsupported attachments are not included or scanned.",
     `# Date mode: ${dateModeHeader(dateMode)}`,
     "",
   ];
@@ -263,8 +268,17 @@ function buildAnalysisIndex(
     schema: "private-chat-analyzer.analysis-index.v1",
     generatedLocally: true,
     sourceLabel: "CHAT_EXPORT",
+    uploaderSpeaker: "NOT_PROVIDED",
+    speakerLabelPolicy: "role_blind",
     primaryEvidence: "chat_redacted.txt",
     navigationOnly: true,
+    contentLimitations: {
+      onlyImportedTextAndMetadata: true,
+      mediaFileBytesIncluded: false,
+      imageVideoStickerAndCallAudioAnalyzed: false,
+      richLinkPreviewsAndUnsupportedAttachmentsAnalyzed: false,
+      note: "Text placeholders or captions may be present, but binary media and unsupported attachment contents were not imported, examined, or sanitized.",
+    },
     dateAnonymization: time.metadata,
     stats: {
       messageCount: messages.length,
@@ -281,12 +295,13 @@ function buildAnalysisIndex(
     },
     candidateWindows: replyGaps,
     disclaimer:
-      "This index is a navigation aid, not ground truth. Verify claims against the full anonymized transcript and inspect context outside candidate windows when needed.",
+      "This index is a navigation aid, not ground truth. Verify claims against the locally pseudonymized selected excerpt; earlier or later conversation may be absent.",
   };
 }
 
 function renderInstructions(dateMode: ChatGptExportDateMode) {
-  return `ChatGPT analysis instructions\n\nDate anonymization mode: ${dateModeHeader(dateMode)}.\n\n1. Treat chat_redacted.txt as the primary evidence. Read the full anonymized transcript when the task requires relationship, conflict, intent, or chronology analysis.\n2. analysis_index.json is only a navigation aid. Candidate windows and derived gaps are not conclusions or labels of truth.\n3. Verify context around any indexed event before making a claim. Search outside candidate windows when necessary.\n4. Do not infer or attempt to recover real identities behind placeholders such as PERSON_A, EMAIL_1, LOCATION_1, or similar tokens.\n5. State counting/classification criteria explicitly when producing quantitative claims.\n6. Anonymization may remove or generalize context. Distinguish direct evidence from interpretation and mention uncertainty where relevant.\n7. Date anonymization preserves ordering and reply-gap durations, but shifted or relative timestamps must not be interpreted as original calendar dates.\n8. The export was scanned locally for structured high-risk identifiers immediately before generation, but detection is not a guarantee of complete anonymization.\n`;
+  return `ChatGPT analysis instructions\n\n${OBSERVER_ANALYSIS_INSTRUCTIONS}\n\nDate anonymization mode: ${dateModeHeader(dateMode)}.\n\n1. Treat chat_redacted.txt as the primary evidence. Read the complete selected excerpt for relationship, conflict, intent, or chronology analysis; earlier/later conversation may be absent.\n2. analysis_index.json is only a navigation aid. Candidate windows and derived gaps are not conclusions or labels of truth.\n3. Verify context around any indexed event before making a claim. Search outside candidate windows when necessary.\n4. Do not infer or attempt to recover real identities behind placeholders such as PERSON_A, EMAIL_1, LOCATION_1, or similar tokens.\n5. State counting/classification criteria explicitly when producing quantitative claims.\n6. Anonymization may remove or generalize context. Distinguish direct evidence from interpretation and mention uncertainty where relevant.\n7. Date anonymization preserves ordering and reply-gap durations, but shifted or relative timestamps must not be interpreted as original calendar dates.\n8. The export was scanned locally for structured high-risk identifiers immediately before generation, but detection is not a guarantee of complete anonymization.
+9. Only text/captions/placeholders and metadata provided by the importer appear here. Image/video/sticker media, call audio, rich link previews, and unsupported attachment contents were not scanned or included; do not infer their content or absence from this excerpt.\n`;
 }
 
 export function buildChatGptExportPack(
@@ -296,26 +311,28 @@ export function buildChatGptExportPack(
 ): ChatGptExportPack {
   const dateMode = normalizeDateMode(options.dateMode);
   const messages = prepareExportMessages(rawMessages, mappings);
+  if (auditUnmaskedSecrets(rawMessages, messages).unmasked > 0) {
+    throw new SecretExportBlockedError();
+  }
   const audit = auditPreparedExport(messages);
 
   if (audit.highRisk.length > 0) {
     throw new ExportBlockedError(audit.highRisk);
   }
 
-  const index = buildAnalysisIndex(messages, audit, dateMode);
+  const observerMessages = neutralizeExportSpeakers(messages);
+  const index = buildAnalysisIndex(observerMessages, audit, dateMode);
 
-  return {
-    audit,
-    files: [
+  const files: ChatGptExportFile[] = [
       {
         name: "chat_redacted.txt",
         type: "text/plain",
-        content: renderTxt(messages, dateMode),
+        content: renderTxt(observerMessages, dateMode),
       },
       {
         name: "chat_redacted.jsonl",
         type: "application/x-ndjson",
-        content: renderJsonl(messages, dateMode),
+        content: renderJsonl(observerMessages, dateMode),
       },
       {
         name: "analysis_index.json",
@@ -327,6 +344,7 @@ export function buildChatGptExportPack(
         type: "text/plain",
         content: renderInstructions(dateMode),
       },
-    ],
-  };
+    ];
+  assertNoExportedSecrets(rawMessages, messages, files);
+  return { audit, files };
 }

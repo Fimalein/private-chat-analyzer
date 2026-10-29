@@ -6,6 +6,7 @@ import {
   type ChatGptExportDateMode,
 } from "@/lib/export/chatgpt-pack";
 import type { EntityMapping } from "@/lib/privacy";
+import { SecretExportBlockedError } from "@/lib/privacy/secret-guard";
 import {
   SYNTHETIC_EXPORT_MAPPINGS,
   SYNTHETIC_EXPORT_MESSAGES,
@@ -122,6 +123,23 @@ describe("buildChatGptExportPack", () => {
     expect(instructions.content).toContain("only a navigation aid");
   });
 
+  it("discloses unscanned media limitations in each reviewable text/index/instruction artifact", () => {
+    const fakeMedia: ChatMessage[] = [
+      { ...msg("fake-image", Date.UTC(2026, 0, 1), "呼び名A", "[画像]"), type: "image" },
+      { ...msg("fake-call", Date.UTC(2026, 0, 1, 1), "呼び名B", "[通話]"), type: "call", callDurationMs: 2000 },
+    ];
+    const pack = buildChatGptExportPack(fakeMedia, mappings, { dateMode: { mode: "relative_day" } });
+    const transcript = fileContent(pack, "chat_redacted.txt");
+    const index = JSON.parse(fileContent(pack, "analysis_index.json"));
+    const instructions = fileContent(pack, "ChatGPT_analysis_instructions.txt");
+    expect(transcript).toContain("not included or scanned");
+    expect(index.contentLimitations.mediaFileBytesIncluded).toBe(false);
+    expect(index.contentLimitations.imageVideoStickerAndCallAudioAnalyzed).toBe(false);
+    expect(instructions).toContain("not scanned or included");
+    expect(index.stats.messageTypeCounts.image).toBe(1);
+    expect(index.stats.messageTypeCounts.call).toBe(1);
+  });
+
   it("keeps exact timestamps by default and records that choice", () => {
     const pack = buildChatGptExportPack(messages, mappings);
     const records = jsonlRecords(pack);
@@ -134,6 +152,8 @@ describe("buildChatGptExportPack", () => {
     expect(index.dateAnonymization.mode).toBe("exact");
     expect(index.dateAnonymization.originalDatesRetained).toBe(true);
     expect(txt).toContain("Date mode: exact");
+    expect(txt).toContain("not guaranteed anonymous");
+    expect(txt).toContain("earlier/later context may be missing");
   });
 
   it("shifts dates by a fixed whole-week offset without changing ordering or reply gaps", () => {
@@ -258,19 +278,8 @@ describe("buildChatGptExportPack", () => {
       (mapping) => mapping.source !== SYNTHETIC_EXPORT_SENSITIVE.secret,
     );
 
-    try {
-      buildChatGptExportPack(SYNTHETIC_EXPORT_MESSAGES, mappingsWithoutCredential);
-      throw new Error("expected export to be blocked for surviving synthetic secret");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ExportBlockedError);
-      const blocked = error as ExportBlockedError;
-      expect(
-        blocked.detections.some(
-          (detection) =>
-            detection.kind === "credential" &&
-            detection.value === SYNTHETIC_EXPORT_SENSITIVE.secret,
-        ),
-      ).toBe(true);
-    }
+    expect(() => buildChatGptExportPack(
+      SYNTHETIC_EXPORT_MESSAGES, mappingsWithoutCredential,
+    )).toThrow(SecretExportBlockedError);
   });
 });
