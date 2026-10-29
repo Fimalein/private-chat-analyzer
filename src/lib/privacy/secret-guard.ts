@@ -71,6 +71,12 @@ function findValues(text: string): string[] {
   // credential value can preserve harmless surrounding conversation context.
   collect(/\b(?:password|passwd|pwd|passphrase|api[_-]?key|client[_-]?secret|access[_-]?token|refresh[_-]?token|auth[_-]?token|id[_-]?token|token|secret|otp|verification[_-]?code|one[_-]?time[_-]?code|session[_-]?id|session[_-]?token|sessionid|csrftoken|oauth[_-]?code|x-amz-signature|signature)\b["']?\s*[:=]\s*["']?([^\s"'&,;\\#]{4,})/gi);
 
+  // Common Japanese credential labels followed by an explicit ASCII-style
+  // value (fabricated examples are regression-tested). This intentionally
+  // avoids treating arbitrary Japanese prose as a secret value; users must
+  // still inspect unrecognized or non-ASCII credentials manually.
+  collect(/(?:パスワード|暗証番号|認証コード|確認コード|ワンタイム(?:パスワード|コード)|APIキー|シークレットキー)[ \\t]*(?:[:：=]|は)[ \\t]*["'「『]?([A-Za-z0-9_@.\\/+=!?#$%-]{4,})/gi);
+
   // Standalone API/authorization headers and credentials in natural language.
   collect(/\b(?:Bearer|Basic)\s+([a-z0-9._~+\/=-]{8,})\b/gi);
   collect(/(?:^|[\r\n])(?:Cookie|Set-Cookie|Authorization)\s*:\s*([^\r\n]+)/gim);
