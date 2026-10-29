@@ -55,7 +55,7 @@ export function ChatGptExportLauncher() {
   );
   const [dateModeKind, setDateModeKind] = useState<
     ChatGptExportDateMode["mode"]
-  >("exact");
+  >("relative_day");
   const [weekShift, setWeekShift] = useState(52);
   const [intendedReceiver, setIntendedReceiver] = useState<"temporary" | "regular" | "other">("temporary");
   const [providerAcknowledged, setProviderAcknowledged] = useState(false);
@@ -191,7 +191,7 @@ export function ChatGptExportLauncher() {
           datePrivacy: "Date privacy",
           exactTitle: "Keep exact timestamps",
           exactBody:
-            "Current behavior. Best chronology fidelity, but original calendar dates remain in the export.",
+            "Preserves original calendar dates for precise chronology; select explicitly when necessary.",
           shiftTitle: "Shift by whole weeks",
           shiftBody:
             "Moves every timestamp by the same whole-week offset. Ordering, weekdays, and intervals are preserved. The offset itself is not exported.",
@@ -251,7 +251,7 @@ export function ChatGptExportLauncher() {
           rangeCaution: "只有選定訊息會進入分享與隱私掃描；全部訊息並非預設選項，其他內容可能影響分析。",
           datePrivacy: "日期隱私",
           exactTitle: "保留精確時間",
-          exactBody: "目前的行為。時間序列最完整，但原始日曆日期會保留在匯出中。",
+          exactBody: "保留原始日期以便精確分析時間順序；只有明確選擇此模式才會使用。",
           shiftTitle: "整週平移",
           shiftBody: "所有時間套用相同的整週位移；順序、星期與時間間隔保持不變，位移量不會寫入匯出檔。",
           relativeTitle: "相對日 + 本地時間",
