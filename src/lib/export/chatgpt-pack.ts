@@ -185,6 +185,7 @@ function renderTxt(
     "# Locally pseudonymized chat excerpt (not guaranteed anonymous)",
     "# Generated locally. Selected excerpt is primary evidence within its scope; earlier/later context may be missing.",
     "# All speaker labels are neutral; which speaker (if any) supplied this transcript is deliberately unspecified.",
+    "# Media limitation: only imported text/captions/placeholders and metadata are exported. Image/video/sticker files, call audio, rich link previews, and unsupported attachments are not included or scanned.",
     `# Date mode: ${dateModeHeader(dateMode)}`,
     "",
   ];
@@ -271,6 +272,13 @@ function buildAnalysisIndex(
     speakerLabelPolicy: "role_blind",
     primaryEvidence: "chat_redacted.txt",
     navigationOnly: true,
+    contentLimitations: {
+      onlyImportedTextAndMetadata: true,
+      mediaFileBytesIncluded: false,
+      imageVideoStickerAndCallAudioAnalyzed: false,
+      richLinkPreviewsAndUnsupportedAttachmentsAnalyzed: false,
+      note: "Text placeholders or captions may be present, but binary media and unsupported attachment contents were not imported, examined, or sanitized.",
+    },
     dateAnonymization: time.metadata,
     stats: {
       messageCount: messages.length,
@@ -292,7 +300,8 @@ function buildAnalysisIndex(
 }
 
 function renderInstructions(dateMode: ChatGptExportDateMode) {
-  return `ChatGPT analysis instructions\n\n${OBSERVER_ANALYSIS_INSTRUCTIONS}\n\nDate anonymization mode: ${dateModeHeader(dateMode)}.\n\n1. Treat chat_redacted.txt as the primary evidence. Read the complete selected excerpt for relationship, conflict, intent, or chronology analysis; earlier/later conversation may be absent.\n2. analysis_index.json is only a navigation aid. Candidate windows and derived gaps are not conclusions or labels of truth.\n3. Verify context around any indexed event before making a claim. Search outside candidate windows when necessary.\n4. Do not infer or attempt to recover real identities behind placeholders such as PERSON_A, EMAIL_1, LOCATION_1, or similar tokens.\n5. State counting/classification criteria explicitly when producing quantitative claims.\n6. Anonymization may remove or generalize context. Distinguish direct evidence from interpretation and mention uncertainty where relevant.\n7. Date anonymization preserves ordering and reply-gap durations, but shifted or relative timestamps must not be interpreted as original calendar dates.\n8. The export was scanned locally for structured high-risk identifiers immediately before generation, but detection is not a guarantee of complete anonymization.\n`;
+  return `ChatGPT analysis instructions\n\n${OBSERVER_ANALYSIS_INSTRUCTIONS}\n\nDate anonymization mode: ${dateModeHeader(dateMode)}.\n\n1. Treat chat_redacted.txt as the primary evidence. Read the complete selected excerpt for relationship, conflict, intent, or chronology analysis; earlier/later conversation may be absent.\n2. analysis_index.json is only a navigation aid. Candidate windows and derived gaps are not conclusions or labels of truth.\n3. Verify context around any indexed event before making a claim. Search outside candidate windows when necessary.\n4. Do not infer or attempt to recover real identities behind placeholders such as PERSON_A, EMAIL_1, LOCATION_1, or similar tokens.\n5. State counting/classification criteria explicitly when producing quantitative claims.\n6. Anonymization may remove or generalize context. Distinguish direct evidence from interpretation and mention uncertainty where relevant.\n7. Date anonymization preserves ordering and reply-gap durations, but shifted or relative timestamps must not be interpreted as original calendar dates.\n8. The export was scanned locally for structured high-risk identifiers immediately before generation, but detection is not a guarantee of complete anonymization.
+9. Only text/captions/placeholders and metadata provided by the importer appear here. Image/video/sticker media, call audio, rich link previews, and unsupported attachment contents were not scanned or included; do not infer their content or absence from this excerpt.\n`;
 }
 
 export function buildChatGptExportPack(
