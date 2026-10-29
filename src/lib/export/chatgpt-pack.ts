@@ -182,8 +182,8 @@ function renderTxt(
 ) {
   const time = makeTimeProjection(messages, dateMode);
   const lines: string[] = [
-    "# Anonymized chat transcript",
-    "# Generated locally. Full transcript is primary evidence for analysis.",
+    "# Locally pseudonymized chat excerpt (not guaranteed anonymous)",
+    "# Generated locally. Selected excerpt is primary evidence within its scope; earlier/later context may be missing.",
     "# All speaker labels are neutral; which speaker (if any) supplied this transcript is deliberately unspecified.",
     `# Date mode: ${dateModeHeader(dateMode)}`,
     "",
