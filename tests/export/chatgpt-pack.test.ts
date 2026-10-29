@@ -123,6 +123,23 @@ describe("buildChatGptExportPack", () => {
     expect(instructions.content).toContain("only a navigation aid");
   });
 
+  it("discloses unscanned media limitations in each reviewable text/index/instruction artifact", () => {
+    const fakeMedia: ChatMessage[] = [
+      { ...msg("fake-image", Date.UTC(2026, 0, 1), "呼び名A", "[画像]"), type: "image" },
+      { ...msg("fake-call", Date.UTC(2026, 0, 1, 1), "呼び名B", "[通話]"), type: "call", callDurationMs: 2000 },
+    ];
+    const pack = buildChatGptExportPack(fakeMedia, mappings, { dateMode: { mode: "relative_day" } });
+    const transcript = fileContent(pack, "chat_redacted.txt");
+    const index = JSON.parse(fileContent(pack, "analysis_index.json"));
+    const instructions = fileContent(pack, "ChatGPT_analysis_instructions.txt");
+    expect(transcript).toContain("not included or scanned");
+    expect(index.contentLimitations.mediaFileBytesIncluded).toBe(false);
+    expect(index.contentLimitations.imageVideoStickerAndCallAudioAnalyzed).toBe(false);
+    expect(instructions).toContain("not scanned or included");
+    expect(index.stats.messageTypeCounts.image).toBe(1);
+    expect(index.stats.messageTypeCounts.call).toBe(1);
+  });
+
   it("keeps exact timestamps by default and records that choice", () => {
     const pack = buildChatGptExportPack(messages, mappings);
     const records = jsonlRecords(pack);
