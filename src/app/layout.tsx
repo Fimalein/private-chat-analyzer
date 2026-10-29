@@ -34,7 +34,7 @@ const siteUrl =
 export const metadata: Metadata = {
   metadataBase: new URL(siteUrl),
   title: "ChatStory",
-  description: "トーク履歴を端末内で分析・可視化するChatStory。現在の公開版は架空データ専用のテスト版です。",
+  description: "トーク履歴を端末内で分析・可視化するChatStory。個人情報を含む履歴を共有する前に、必ず内容を確認してください。",
   openGraph: {
     type: "website",
     locale: "ja_JP",

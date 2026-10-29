@@ -22,9 +22,8 @@
   --color-accent-dim: var(--accent-dim);
   --color-accent-deep: var(--accent-deep);
   --color-pink: var(--pink);
-  --font-sans: var(--font-nunito), var(--font-noto), "Microsoft JhengHei",
-    sans-serif;
-  --font-serif: var(--font-title), "Zen Maru Gothic", "Microsoft JhengHei",
+  --font-sans: var(--font-nunito), var(--font-noto), "Hiragino Kaku Gothic ProN", "Yu Gothic", sans-serif;
+  --font-serif: var(--font-title), "Zen Maru Gothic", "Yu Gothic",
     sans-serif;
 }
 
