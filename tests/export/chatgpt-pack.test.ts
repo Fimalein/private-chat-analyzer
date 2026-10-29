@@ -135,6 +135,8 @@ describe("buildChatGptExportPack", () => {
     expect(index.dateAnonymization.mode).toBe("exact");
     expect(index.dateAnonymization.originalDatesRetained).toBe(true);
     expect(txt).toContain("Date mode: exact");
+    expect(txt).toContain("not guaranteed anonymous");
+    expect(txt).toContain("earlier/later context may be missing");
   });
 
   it("shifts dates by a fixed whole-week offset without changing ordering or reply gaps", () => {
