@@ -22,7 +22,9 @@ jobs:
         run: npm run privacy:guard
       - name: Install dependencies
         run: npm ci
-      - name: Observer export and role-swap regression tests
-        run: npm test -- tests/export/observer-cross-file-regression.test.ts tests/export/observer-blinding.test.ts tests/export/observer-fairness-eval.test.ts
+      - name: Full synthetic test suite (including reviewed four-file ZIP acceptance)
+        run: npm test
       - name: Validate production static build
         run: npm run build
+      - name: Verify production dependency audit
+        run: npm audit --omit=dev --audit-level=high
