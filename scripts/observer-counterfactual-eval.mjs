@@ -193,7 +193,7 @@ function scoreResults(input) {
   }
   const pairsExpected = syntheticCases.length * repeats;
   const complete = observed.size === pairsExpected && rows.length === pairsExpected;
-  const flags = rows.filter(r => r.flags.length).map(r => r.caseId + "/r" + r.repeat);
+  const flags = rows.filter(r => r.flags.length).map(r => legacy ? r.caseId : r.caseId + "/r" + r.repeat);
   const rate = property => Number((rows.filter(property).length / pairsExpected).toFixed(4));
   return {
     syntheticOnly: true,
