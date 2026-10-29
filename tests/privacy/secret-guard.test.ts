@@ -31,6 +31,23 @@ describe("local credential export blocker (synthetic only)", () => {
     expect(() => buildChatGptExportPack(source, [])).toThrow(SecretExportBlockedError);
   });
 
+  it.each([
+    "パスワード：FABRICATEDPassword099",
+    "暗証番号:2468",
+    "認証コードは 123456",
+    "APIキー=FAKE_API_KEY_56789",
+    "ワンタイムコード：987654",
+  ])("blocks explicit Japanese credential assignments (fabricated only): %#", content => {
+    const source = [dummy(content)];
+    expect(auditUnmaskedSecrets(source, source).unmasked).toBeGreaterThan(0);
+    expect(() => buildChatGptExportPack(source, [])).toThrow(SecretExportBlockedError);
+  });
+
+  it("does not mistake an ordinary Japanese password discussion for a recognized credential", () => {
+    const source = [dummy("パスワードの変更方法を教えてください")];
+    expect(auditUnmaskedSecrets(source, source).unmasked).toBe(0);
+  });
+
   it("allows mapped secret values only after rescanning all export artifacts", () => {
     const source = [dummy("password=FABRICATEDPassword099")];
     const mappings: EntityMapping[] = [
