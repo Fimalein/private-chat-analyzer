@@ -7,6 +7,7 @@
  * synthetic canary. Do not log raw URL/query/body/header values.
  */
 const assert = require("node:assert/strict");
+const { readFile } = require("node:fs/promises");
 const { chromium } = require("playwright");
 
 const origin = process.env.CHATSTORY_TEST_ORIGIN || "http://127.0.0.1:4173";
@@ -30,7 +31,7 @@ const fixture = [
   const browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({
     serviceWorkers: "block",
-    acceptDownloads: false,
+    acceptDownloads: true,
   });
   // Existing privacy gates run under a stable English locale. The live app now
   // defaults to Japanese, so also verify Japanese switching independently.
@@ -108,7 +109,7 @@ const fixture = [
     await dialog.getByRole("button", { name: /^(關閉|Close)$/ }).click();
     await page.getByRole("button", { name: /ChatGPT 匯出|Export for ChatGPT/ }).click();
     const shareButton = page.getByRole("button", {
-      name: /下載 4 個檔案|download 4 files/,
+      name: /儲存核准的 ZIP|Save approved ZIP locally/,
     });
     await shareButton.waitFor();
     assert.equal(await shareButton.isDisabled(), true,
@@ -128,11 +129,14 @@ const fixture = [
         "chat_redacted.txt", "chat_redacted.jsonl",
         "analysis_index.json", "ChatGPT_analysis_instructions.txt",
       ];
+      const reviewedContents = [];
       for (const fileName of names) {
         await page.getByRole("button", { name: fileName, exact: true }).click();
         const fileViewer = page.getByRole("textbox", { name: "Full selected export file preview" });
-        assert.ok((await fileViewer.inputValue()).length > 0,
+        const exactContent = await fileViewer.inputValue();
+        assert.ok(exactContent.length > 0,
           "Each selected file must show its actual full content");
+        reviewedContents.push({ name: fileName, content: exactContent });
         await page.getByRole("checkbox", {
           name: /我已檢查此檔案的全部內容|I reviewed the entire selected file/,
         }).check();
@@ -144,6 +148,7 @@ const fixture = [
       }).click();
       assert.equal(await shareButton.isEnabled(), true,
         "Only four-file review plus explicit authorization may unlock ordinary export");
+      return reviewedContents;
     }
     await reviewAllFour();
     auditStage = "desktop_scope_change";
@@ -172,7 +177,48 @@ const fixture = [
     await acknowledge.check();
     assert.equal(await shareButton.isDisabled(), true,
       "Changing recipient invalidates even the earlier file-specific review");
-    await reviewAllFour();
+    const finalReviewedFiles = await reviewAllFour();
+    auditStage = "desktop_approved_zip_download";
+    const [zipDownload] = await Promise.all([
+      page.waitForEvent("download"),
+      shareButton.click(),
+    ]);
+    assert.equal(zipDownload.suggestedFilename(), "ChatStory_analysis_pack.zip");
+    const zipBytes = await readFile(await zipDownload.path());
+    let zipOffset = 0;
+    const decodedFiles = [];
+    for (const expected of finalReviewedFiles) {
+      assert.equal(zipBytes.readUInt32LE(zipOffset), 0x04034b50, "Missing ZIP local entry");
+      const nameBytes = zipBytes.readUInt16LE(zipOffset + 26);
+      const extraBytes = zipBytes.readUInt16LE(zipOffset + 28);
+      const contentBytes = zipBytes.readUInt32LE(zipOffset + 18);
+      const nameStart = zipOffset + 30;
+      const actualName = zipBytes.subarray(nameStart, nameStart + nameBytes).toString("utf8");
+      const contentStart = nameStart + nameBytes + extraBytes;
+      const actualText = zipBytes.subarray(contentStart, contentStart + contentBytes).toString("utf8");
+      assert.equal(actualName, expected.name, "ZIP entry name differs from reviewed file");
+      assert.equal(actualText, expected.content, "ZIP content differs from reviewed file");
+      decodedFiles.push(actualName);
+      zipOffset = contentStart + contentBytes;
+    }
+    assert.equal(zipBytes.readUInt32LE(zipOffset), 0x02014b50, "ZIP must contain central directory");
+    assert.equal(zipBytes.readUInt16LE(zipBytes.length - 12), 4, "Exactly four files required");
+    assert.equal(decodedFiles.length, 4);
+
+    auditStage = "desktop_simulated_share_cancellation";
+    await page.evaluate(() => {
+      window.__syntheticShareAttempted = false;
+      Object.defineProperty(navigator, "canShare", { configurable: true, value: () => true });
+      Object.defineProperty(navigator, "share", { configurable: true, value: async () => {
+        window.__syntheticShareAttempted = true;
+        throw new DOMException("Synthetic cancellation", "AbortError");
+      } });
+    });
+    await page.getByRole("button", { name: /裝置分享選單|Device share menu/ }).click();
+    await page.waitForFunction(() => window.__syntheticShareAttempted === true);
+    assert.equal(await page.getByText(/Sharing finished or ZIP download started/).count(), 0,
+      "Cancelled sharing must not be displayed as a completed handoff");
+
     // Additional synthetic chat: no native share is possible if a cookie secret
     // remains, even when recipient terms have been acknowledged.
     await page.goto(origin, { waitUntil: "networkidle" });
@@ -196,7 +242,7 @@ const fixture = [
       name: /我了解本機下載|I understand that downloading/,
     }).check();
     assert.equal(await page.getByRole("button", {
-      name: /下載 4 個檔案|download 4 files/,
+      name: /儲存核准的 ZIP|Save approved ZIP locally/,
     }).isDisabled(), true, "Synthetic secret must block ordinary export after provider acknowledgement");
     await page.getByText(/認證秘密資料|Authentication secrets remain/).waitFor();
     // Never trigger native share or a download in this pre-handoff network test.
@@ -269,7 +315,7 @@ const fixture = [
       assert.equal((await mobileViewer.inputValue()).includes("MOBILE_FABRICATED_FIRST_EXCLUDED"), false,
         "Mobile preview must exclude a fabricated first message outside the selected last 25");
       const mobileShare = mobilePage.getByRole("button", {
-        name: /下載 4 個檔案|download 4 files/,
+        name: /儲存核准的 ZIP|Save approved ZIP locally/,
       });
       assert.equal(await mobileShare.isDisabled(), true, "Mobile preview must not unlock file sharing");
       auditStage = "mobile_expand_all";
@@ -296,6 +342,8 @@ const fixture = [
       importAndStrictPreview: "passed",
       ordinaryExportRecipientGate: "passed",
       ordinaryFourFileApproval: "passed",
+      approvedZipByteParity: "passed",
+      simulatedShareCancellation: "passed",
       scopeResetAndMobileEmulation: "passed",
       mobileSameOriginRequests: mobileLocalRequests,
       mobileExternalRequests: mobileEgressAttempts,
