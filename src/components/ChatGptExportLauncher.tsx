@@ -140,7 +140,8 @@ export function ChatGptExportLauncher() {
           invalidShift: "-5200〜5200の間で、0以外の整数週を指定してください。",
           explicit: "日付の匿名化は任意です。選んだ方式は出力ファイルに記録されます。",
           contents: "出力ファイル",
-          export: "承認済み4ファイルを共有／ZIP保存",
+          export: "承認済みZIPを保存（外部送信なし）",
+          share: "端末の共有メニュー",
           working: "生成中…",
           done: "共有が完了したか、ZIP保存を開始しました。ブラウザのダウンロードを確認してください。",
           error: "書き出しに失敗しました。ファイルは共有されていません。",
@@ -203,7 +204,8 @@ export function ChatGptExportLauncher() {
           explicit:
             "Date anonymization is optional and never enabled silently. The selected mode is recorded in every export pack.",
           contents: "Files",
-          export: "Share or download one ZIP",
+          export: "Save approved ZIP locally",
+          share: "Device share menu",
           working: "Generating…",
           done: "Sharing finished or ZIP download started. Check browser downloads.",
           error: "Export failed. Nothing was shared.",
@@ -259,7 +261,8 @@ export function ChatGptExportLauncher() {
           invalidShift: "請使用 -5200 到 5200 之間、非 0 的整數週數。",
           explicit: "日期匿名化是選用功能，不會默默啟用；所選模式會記錄在匯出套件中。",
           contents: "檔案",
-          export: "分享或下載單一 ZIP（內含 4 檔）",
+          export: "儲存核准的 ZIP（僅本機）",
+          share: "裝置分享選單",
           working: "產生中…",
           done: "已完成分享或啟動 ZIP 下載，請檢查瀏覽器下載。",
           error: "匯出失敗，沒有分享任何資料。",
@@ -341,7 +344,7 @@ export function ChatGptExportLauncher() {
     }
   }
 
-  async function exportPack() {
+  async function exportPack(mode: "download" | "share") {
     if (!canShare || !validPreview) {
       setStatus("error");
       return;
@@ -354,16 +357,20 @@ export function ChatGptExportLauncher() {
         intendedReceiver, dashboardId, validPreview,
         reviewedFileNames, providerAcknowledged,
       );
-      const files = pack.files.map(
-        (file) => new File([file.content], file.name, { type: file.type }),
-      );
-      const shareData: ShareData = { files };
-
-      if (navigator.share && navigator.canShare?.(shareData)) {
-        await navigator.share(shareData);
-      } else {
-        // Avoid four sequential downloads being silently blocked by browsers.
+      if (mode === "download") {
+        // Downloading is local; it never selects an external recipient.
         downloadZip(pack.files);
+      } else {
+        const files = pack.files.map(
+          (file) => new File([file.content], file.name, { type: file.type }),
+        );
+        const shareData: ShareData = { files };
+        if (navigator.share && navigator.canShare?.(shareData)) {
+          await navigator.share(shareData);
+        } else {
+          // Native share unavailable: fall back to one local ZIP, not four downloads.
+          downloadZip(pack.files);
+        }
       }
       setStatus("done");
     } catch (error) {
@@ -700,10 +707,18 @@ export function ChatGptExportLauncher() {
               <button
                 type="button"
                 disabled={!canShare}
-                onClick={exportPack}
+                onClick={() => exportPack("download")}
                 className="rounded-full bg-accent-deep px-4 py-2 text-sm font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
               >
                 {status === "working" ? text.working : text.export}
+              </button>
+              <button
+                type="button"
+                disabled={!canShare}
+                onClick={() => exportPack("share")}
+                className="rounded-full border border-card-border bg-white px-3 py-2 text-xs font-semibold text-accent-deep disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {text.share}
               </button>
             </div>
           </section>
