@@ -1,0 +1,55 @@
+name: Security browser egress (synthetic only)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: security-egress-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  privacy-browser-egress:
+    name: Privacy browser egress
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - name: Guard tracked inputs
+        run: npm run privacy:guard
+      - name: Install locked production/app dependencies
+        run: npm ci
+      - name: Check synthetic browser audit syntax
+        run: node --check scripts/audit-synthetic-browser-egress.cjs
+      - name: Verify production dependencies
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build release-shaped static Pages artifact
+        run: npm run build
+        env:
+          GITHUB_PAGES: "true"
+      - name: Install isolated Chromium
+        run: |
+          mkdir -p "$RUNNER_TEMP/privacy-driver"
+          cd "$RUNNER_TEMP/privacy-driver"
+          npm init -y >/dev/null
+          npm install --no-package-lock --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Inspect import, privacy review, ZIP export and explorer network boundary
+        env:
+          NODE_PATH: ${{ runner.temp }}/privacy-driver/node_modules
+          CHATSTORY_TEST_ORIGIN: http://127.0.0.1:4173/private-chat-analyzer/
+        run: |
+          mkdir -p "$RUNNER_TEMP/page-root/private-chat-analyzer"
+          cp -a out/. "$RUNNER_TEMP/page-root/private-chat-analyzer/"
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory "$RUNNER_TEMP/page-root" > /tmp/chatstory-egress-static.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          node scripts/audit-synthetic-browser-egress.cjs
