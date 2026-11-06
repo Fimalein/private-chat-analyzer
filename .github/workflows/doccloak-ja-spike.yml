@@ -1,0 +1,38 @@
+name: DocCloak Japanese spike
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "scripts/spikes/doccloak-ja-eval.mjs"
+      - "tests/fixtures/synthetic/doccloak-ja-eval.json"
+      - ".github/workflows/doccloak-ja-spike.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install project dependencies
+        run: npm ci
+
+      - name: Install spike-only DocCloak dependencies
+        run: npm install --no-save --package-lock=false @doccloak/core@0.13.0 @huggingface/transformers@4.2.0
+
+      - name: Validate public-repository privacy guard
+        run: npm run privacy:guard
+
+      - name: Run synthetic Japanese DocCloak evaluation
+        run: node scripts/spikes/doccloak-ja-eval.mjs
