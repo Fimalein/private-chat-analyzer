@@ -18,7 +18,7 @@ GitHub接続の現行書込みアクションではRulesets/Branch protectionを
 2. PRを必須にし、ステータスチェック **`Test and build`** と **`Privacy browser egress`** を必須にする。チェック名は実際に成功したworkflow runの一覧から選ぶ。
 3. 可能なら独立したレビュアーの承認を必須にし、古い承認を無効化する。公開用の `.github/workflows/**` 変更にもコードオーナー承認を適用する。
 4. `Settings → Environments → github-pages` のdeployment branchesを `main` に限定する。GitHub Pagesの公開元がGitHub Actionsになっていることを確認する。
-5. 権限が必要なジョブのみ権限を持つことを維持する。将来的にサードパーティActionsの参照を検証済みの**フルコミットSHA**へ固定する。
+5. 権限が必要なジョブのみ権限を持つことを維持する。本PRで変更する2つのワークフローのGitHub公式Actionsは検証済みの**フルコミットSHA**へ固定済み。ほかのワークフローにも段階的に適用し、更新時はSHAを再検証する。
 6. リリース時はPR差分、package-lock、チェック結果と公開サイトのHTTP・ネットワーク挙動を確認する。
 
 ## なお残るリスク
