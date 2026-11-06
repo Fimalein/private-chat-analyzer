@@ -5,28 +5,56 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# The build and third-party install steps have read-only repository access.
+# Deployment credentials are granted only to the final deploy job.
 permissions:
   contents: read
-  pages: write
-  id-token: write
 
 concurrency:
   group: pages
   cancel-in-progress: false
 
 jobs:
-  build:
+  verify-and-build:
+    name: Verify privacy and build release
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
-      - run: npm run build
+      - name: Install locked app dependencies
+        run: npm ci
+      - name: Reject accidental tracked private data
+        run: npm run privacy:guard
+      - name: Run tests
+        run: npm test
+      - name: Block high/critical production dependency findings
+        run: npm audit --omit=dev --audit-level=high
+      - name: Build the exact GitHub Pages output
+        run: npm run build
         env:
           GITHUB_PAGES: "true"
+      - name: Install isolated Chromium browser driver
+        run: |
+          mkdir -p "$RUNNER_TEMP/privacy-driver"
+          cd "$RUNNER_TEMP/privacy-driver"
+          npm init -y >/dev/null
+          npm install --no-package-lock --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Audit release artifact in a real browser with synthetic chat
+        env:
+          NODE_PATH: ${{ runner.temp }}/privacy-driver/node_modules
+          CHATSTORY_TEST_ORIGIN: http://127.0.0.1:4173/private-chat-analyzer/
+        run: |
+          mkdir -p "$RUNNER_TEMP/page-root/private-chat-analyzer"
+          cp -a out/. "$RUNNER_TEMP/page-root/private-chat-analyzer/"
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory "$RUNNER_TEMP/page-root" > /tmp/chatstory-egress-static.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          node scripts/audit-synthetic-browser-egress.cjs
       - name: Add .nojekyll
         run: touch out/.nojekyll
       - uses: actions/upload-pages-artifact@v3
@@ -34,11 +62,17 @@ jobs:
           path: out
 
   deploy:
+    name: Deploy verified artifact only
+    if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
-    needs: build
+    needs: verify-and-build
     steps:
       - id: deployment
         uses: actions/deploy-pages@v4
