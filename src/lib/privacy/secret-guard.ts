@@ -75,7 +75,7 @@ function findValues(text: string): string[] {
   // value (fabricated examples are regression-tested). This intentionally
   // avoids treating arbitrary Japanese prose as a secret value; users must
   // still inspect unrecognized or non-ASCII credentials manually.
-  collect(/(?:パスワード|暗証番号|認証コード|確認コード|ワンタイム(?:パスワード|コード)|APIキー|シークレットキー)[ \\t]*(?:[:：=]|は)[ \\t]*["'「『]?([A-Za-z0-9_@.\\/+=!?#$%-]{4,})/gi);
+  collect(/(?:パスワード|暗証番号|認証コード|確認コード|ワンタイム(?:パスワード|コード)|APIキー|シークレットキー)[ \t]*(?:[:：=]|は)[ \t]*["'「『]?([A-Za-z0-9_@.\\/+=!?#$%-]{4,})/gi);
 
   // Standalone API/authorization headers and credentials in natural language.
   collect(/\b(?:Bearer|Basic)\s+([a-z0-9._~+\/=-]{8,})\b/gi);

@@ -49,10 +49,12 @@ The export path applies the current privacy mappings, then rescans the transform
 
 The generated pack contains:
 
-- `chat_redacted.txt` — the primary anonymized transcript for analysis;
-- `chat_redacted.jsonl` — one structured object per message;
+- `chat_redacted.txt` — a human-readable transcript with quoted body lines;
+- `chat_redacted.jsonl` — the canonical top-level message records for citations, speaker attribution and content;
 - `analysis_index.json` — navigation/derived metadata, not a substitute for the transcript;
 - `ChatGPT_analysis_instructions.txt` — instructions describing how the pack should be interpreted.
+
+A header-like string or nested JSON inside message content is quoted dialogue, not a separate record. Credential scans cover recognized forms, with bounded decoding and normalization; secrets split across messages, arbitrary encodings and unrecognized values may escape detection. Review the complete selected excerpt and all four files.
 
 Generation happens in the browser. Files leave the application only after the user explicitly invokes sharing/download; the browser may then hand them to the operating system or a selected share target.
 

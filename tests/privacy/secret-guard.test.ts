@@ -37,6 +37,9 @@ describe("local credential export blocker (synthetic only)", () => {
     "認証コードは 123456",
     "APIキー=FAKE_API_KEY_56789",
     "ワンタイムコード：987654",
+    "パスワード\t：\tFABRICATEDPassword099",
+    "ＡＰＩキー＝FABRICATED_API_KEY_56789",
+    "パス\u200bワード：FABRICATEDPassword099",
   ])("blocks explicit Japanese credential assignments (fabricated only): %#", content => {
     const source = [dummy(content)];
     expect(auditUnmaskedSecrets(source, source).unmasked).toBeGreaterThan(0);
@@ -79,6 +82,9 @@ describe("local credential export blocker (synthetic only)", () => {
       "password%3DFABRICATEDPassword099",
       "password\\u003dFABRICATEDPassword099",
       "password&#61;FABRICATEDPassword099",
+      "pass\u200bword=FABRICATEDPassword099",
+      "ｐａｓｓｗｏｒｄ＝FABRICATEDPassword099",
+      "password%253DFABRICATEDPassword099",
     ];
     for (const content of probes) {
       expect(() => assertNoExportedSecrets(raw, raw, [{ name: "chat_redacted.txt", content }]))

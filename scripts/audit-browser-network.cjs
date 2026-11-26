@@ -12,6 +12,8 @@ const { chromium } = require("playwright");
 
 const origin = process.env.CHATSTORY_TEST_ORIGIN || "http://127.0.0.1:4173";
 let auditStage = "desktop_initial";
+const longTail = "SYNTHETIC_LONG_BODY_TAIL";
+const longBody = "架空の文章 / fabricated text / 測試 / 🌱 ".repeat(300) + longTail;
 const canaries = [
   "network-sentinel-chat-418",
   "sender-one@example.test",
@@ -24,7 +26,7 @@ const fixture = [
   "2026/10/11(日)",
   "9:10\tsender-one@example.test\tSYNTHETIC_FIXTURE network-sentinel-chat-418: 最近はどう？",
   "9:11\tsender-two@example.test\tSYNTHETIC_FIXTURE 今日の話題を分析したい。",
-  "9:12\tsender-one@example.test\tSYNTHETIC_FIXTURE これは架空の内容。",
+  "9:12\tsender-one@example.test\tSYNTHETIC_FIXTURE " + longBody,
 ].join("\n");
 
 (async () => {
@@ -178,6 +180,12 @@ const fixture = [
     assert.equal(await shareButton.isDisabled(), true,
       "Changing recipient invalidates even the earlier file-specific review");
     const finalReviewedFiles = await reviewAllFour();
+    const longTxt = finalReviewedFiles.find(file => file.name === "chat_redacted.txt").content;
+    const longRecords = finalReviewedFiles.find(file => file.name === "chat_redacted.jsonl").content
+      .trim().split("\n").map(line => JSON.parse(line));
+    assert.ok(longTxt.includes(longBody), "TXT preview must contain the entire fabricated long line");
+    assert.ok(longRecords.some(record => record.content === "SYNTHETIC_FIXTURE " + longBody),
+      "JSONL preview must preserve the exact fabricated multilingual long message");
     auditStage = "desktop_approved_zip_download";
     const [zipDownload] = await Promise.all([
       page.waitForEvent("download"),
@@ -343,6 +351,7 @@ const fixture = [
       ordinaryExportRecipientGate: "passed",
       ordinaryFourFileApproval: "passed",
       approvedZipByteParity: "passed",
+      longMultilingualPreview: "passed",
       simulatedShareCancellation: "passed",
       scopeResetAndMobileEmulation: "passed",
       mobileSameOriginRequests: mobileLocalRequests,
