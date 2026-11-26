@@ -5,6 +5,7 @@ import {
   type ChatGptExportDateMode,
   type ChatGptExportFile,
   type ChatGptExportPack,
+  type ObserverExportVariant,
 } from "@/lib/export/chatgpt-pack";
 
 export const STANDARD_HANDOFF_FILE_NAMES = [
@@ -49,11 +50,13 @@ export function standardHandoffSnapshot(
   dateMode: ChatGptExportDateMode,
   recipient: IntendedChatGptRecipient,
   dashboardId: string,
+  observerVariant: ObserverExportVariant = "standard",
 ): string {
   return JSON.stringify({
     dashboardId,
     recipient,
     dateMode,
+    observerVariant,
     messages: rawMessages,
     mappings,
   });
@@ -65,14 +68,15 @@ export function previewStandardHandoff(
   dateMode: ChatGptExportDateMode,
   recipient: IntendedChatGptRecipient,
   dashboardId: string,
+  observerVariant: ObserverExportVariant = "standard",
 ): StandardHandoffPreview {
-  const pack = buildChatGptExportPack(rawMessages, mappings, { dateMode });
+  const pack = buildChatGptExportPack(rawMessages, mappings, { dateMode, observerVariant });
   if (pack.files.length !== STANDARD_HANDOFF_FILE_NAMES.length ||
       pack.files.some((file, i) => file.name !== STANDARD_HANDOFF_FILE_NAMES[i])) {
     throw new StandardHandoffBlockedError("preview_changed");
   }
   return {
-    snapshot: standardHandoffSnapshot(rawMessages, mappings, dateMode, recipient, dashboardId),
+    snapshot: standardHandoffSnapshot(rawMessages, mappings, dateMode, recipient, dashboardId, observerVariant),
     files: pack.files.map(file => ({ ...file })),
   };
 }
@@ -86,9 +90,10 @@ export function approveStandardHandoff(
   preview: StandardHandoffPreview | null,
   reviewedFileNames: readonly string[],
   recipientAcknowledged: boolean,
+  observerVariant: ObserverExportVariant = "standard",
 ): ChatGptExportPack {
   if (!preview) throw new StandardHandoffBlockedError("preview_missing");
-  if (preview.snapshot !== standardHandoffSnapshot(rawMessages, mappings, dateMode, recipient, dashboardId)) {
+  if (preview.snapshot !== standardHandoffSnapshot(rawMessages, mappings, dateMode, recipient, dashboardId, observerVariant)) {
     throw new StandardHandoffBlockedError("preview_stale");
   }
   if (!recipientAcknowledged) throw new StandardHandoffBlockedError("recipient_not_acknowledged");
@@ -99,7 +104,7 @@ export function approveStandardHandoff(
 
   // Important: repeat the complete raw/structured/serialized safety scan at
   // handoff, rather than trusting the pack rendered earlier.
-  const pack = buildChatGptExportPack(rawMessages, mappings, { dateMode });
+  const pack = buildChatGptExportPack(rawMessages, mappings, { dateMode, observerVariant });
   if (pack.files.length !== STANDARD_HANDOFF_FILE_NAMES.length ||
       preview.files.length !== STANDARD_HANDOFF_FILE_NAMES.length ||
       pack.files.some((file, i) =>

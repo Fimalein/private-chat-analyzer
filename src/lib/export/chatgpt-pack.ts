@@ -1,6 +1,8 @@
 import { attachReplyGaps, deriveReplyGaps } from "@/lib/analysis/reply-gaps";
 import type { ChatMessage } from "@/lib/chat-types";
 import { neutralizeExportSpeakers } from "@/lib/export/observer-speakers";
+import { swapObserverSpeakerLabels } from "@/lib/export/observer-fairness-eval";
+import { OBSERVER_COMPARISON_INSTRUCTIONS } from "@/lib/export/observer-comparison";
 import { OBSERVER_ANALYSIS_INSTRUCTIONS } from "@/lib/export/observer-instructions";
 import { assertNoExportedSecrets, auditUnmaskedSecrets, SecretExportBlockedError } from "@/lib/privacy/secret-guard";
 import {
@@ -27,8 +29,11 @@ export type ChatGptExportDateMode =
   | { mode: "shift_weeks"; weeks: number }
   | { mode: "relative_day" };
 
+export type ObserverExportVariant = "standard" | "original" | "swapped";
+
 export type ChatGptExportOptions = {
   dateMode?: ChatGptExportDateMode;
+  observerVariant?: ObserverExportVariant;
 };
 
 export type ChatGptExportPack = {
@@ -323,7 +328,23 @@ export function buildChatGptExportPack(
     throw new ExportBlockedError(audit.highRisk);
   }
 
-  const observerMessages = neutralizeExportSpeakers(messages);
+  const variant = options.observerVariant ?? "standard";
+  if (!["standard", "original", "swapped"].includes(variant)) throw new Error("INVALID_OBSERVER_VARIANT");
+  let observerMessages = neutralizeExportSpeakers(messages);
+  if (variant !== "standard") {
+    const speakers = new Set(observerMessages.map(m => m.senderName));
+    if (speakers.size !== 2 || !speakers.has("PERSON_A") || !speakers.has("PERSON_B")) {
+      throw new Error("OBSERVER_COMPARISON_REQUIRES_TWO_A_B_SPEAKERS");
+    }
+    if (variant === "swapped") {
+      observerMessages = observerMessages.map(message => ({
+        ...message,
+        senderId: swapObserverSpeakerLabels(message.senderId),
+        senderName: swapObserverSpeakerLabels(message.senderName),
+        content: swapObserverSpeakerLabels(message.content),
+      }));
+    }
+  }
   const index = buildAnalysisIndex(observerMessages, audit, dateMode);
 
   const files: ChatGptExportFile[] = [
@@ -345,7 +366,7 @@ export function buildChatGptExportPack(
       {
         name: "ChatGPT_analysis_instructions.txt",
         type: "text/plain",
-        content: renderInstructions(dateMode),
+        content: renderInstructions(dateMode) + (variant === "standard" ? "" : `\n${OBSERVER_COMPARISON_INSTRUCTIONS}\n`),
       },
     ];
   assertNoExportedSecrets(rawMessages, messages, files);

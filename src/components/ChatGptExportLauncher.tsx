@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { ObserverComparisonPanel } from "@/components/ObserverComparisonPanel";
 import { useChat } from "@/components/ChatProvider";
 import { useLocale } from "@/components/LocaleProvider";
 import { createChatStoryZip } from "@/lib/export/zip-pack";
@@ -10,6 +11,7 @@ import {
   prepareExportMessages,
   type ChatGptExportDateMode,
   type ChatGptExportFile,
+  type ObserverExportVariant,
 } from "@/lib/export/chatgpt-pack";
 import { auditUnmaskedSecrets, SecretExportBlockedError } from "@/lib/privacy/secret-guard";
 import {
@@ -26,13 +28,13 @@ import {
   type StandardHandoffPreview,
 } from "@/lib/export/reviewed-chatgpt-handoff";
 
-function downloadZip(files: readonly ChatGptExportFile[]) {
+function downloadZip(files: readonly ChatGptExportFile[], variant: ObserverExportVariant = "standard") {
   const zip = createChatStoryZip(files);
   const blob = new Blob([zip.buffer as ArrayBuffer], { type: "application/zip" });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "ChatStory_analysis_pack.zip";
+  link.download = variant === "standard" ? "ChatStory_analysis_pack.zip" : `ChatStory_analysis_pack_${variant}.zip`;
   document.body.appendChild(link);
   link.click();
   link.remove();
@@ -63,6 +65,8 @@ export function ChatGptExportLauncher() {
   const [reviewedFileNames, setReviewedFileNames] = useState<string[]>([]);
   const [reviewFileIndex, setReviewFileIndex] = useState(0);
   const [approvalEnabled, setApprovalEnabled] = useState(false);
+  const [observerVariant, setObserverVariant] = useState<ObserverExportVariant>("standard");
+  const [reviewGeneration, setReviewGeneration] = useState(0);
   const [scopeMode, setScopeMode] = useState<ChatExportScope["mode"]>("recent");
   const [recentCount, setRecentCount] = useState<RecentExportCount>(25);
   const [rangeStart, setRangeStart] = useState("");
@@ -289,7 +293,7 @@ export function ChatGptExportLauncher() {
         };
 
   const currentSnapshot = standardHandoffSnapshot(
-    activeMessages, activePrivacyMappings, selectedDateMode, intendedReceiver, dashboardId,
+    activeMessages, activePrivacyMappings, selectedDateMode, intendedReceiver, dashboardId, observerVariant,
   );
   const validPreview = reviewPreview?.snapshot === currentSnapshot ? reviewPreview : null;
   const filesReviewed = Boolean(validPreview &&
@@ -301,6 +305,7 @@ export function ChatGptExportLauncher() {
     status !== "working");
 
   function resetReview() {
+    setReviewGeneration(current => current + 1);
     setReviewPreview(null);
     setReviewedFileNames([]);
     setReviewFileIndex(0);
@@ -316,7 +321,7 @@ export function ChatGptExportLauncher() {
     }
     try {
       const next = previewStandardHandoff(
-        activeMessages, activePrivacyMappings, selectedDateMode, intendedReceiver, dashboardId,
+        activeMessages, activePrivacyMappings, selectedDateMode, intendedReceiver, dashboardId, observerVariant,
       );
       setReviewPreview(next);
     } catch {
@@ -338,7 +343,7 @@ export function ChatGptExportLauncher() {
       approveStandardHandoff(
         activeMessages, activePrivacyMappings, selectedDateMode,
         intendedReceiver, dashboardId, validPreview,
-        reviewedFileNames, providerAcknowledged,
+        reviewedFileNames, providerAcknowledged, observerVariant,
       );
       setApprovalEnabled(true);
       setStatus("idle");
@@ -358,11 +363,11 @@ export function ChatGptExportLauncher() {
       const pack = approveStandardHandoff(
         activeMessages, activePrivacyMappings, selectedDateMode,
         intendedReceiver, dashboardId, validPreview,
-        reviewedFileNames, providerAcknowledged,
+        reviewedFileNames, providerAcknowledged, observerVariant,
       );
       if (mode === "download") {
         // Downloading is local; it never selects an external recipient.
-        downloadZip(pack.files);
+        downloadZip(pack.files, observerVariant);
       } else {
         const files = pack.files.map(
           (file) => new File([file.content], file.name, { type: file.type }),
@@ -372,7 +377,7 @@ export function ChatGptExportLauncher() {
           await navigator.share(shareData);
         } else {
           // Native share unavailable: fall back to one local ZIP, not four downloads.
-          downloadZip(pack.files);
+          downloadZip(pack.files, observerVariant);
         }
       }
       setStatus("done");
@@ -409,6 +414,7 @@ export function ChatGptExportLauncher() {
         onClick={() => {
           setStatus("idle");
           setProviderAcknowledged(false);
+          setObserverVariant("standard");
           setScopeMode("recent");
           setRecentCount(25);
           setRangeStart("");
@@ -653,6 +659,20 @@ export function ChatGptExportLauncher() {
               </label>
             </div>
 
+            <div className="mt-4 rounded-xl border border-card-border p-3 text-xs">
+              <label className="block font-semibold text-accent-deep">
+                {locale === "ja" ? "観察者比較モード（実験的）" : locale === "en" ? "Observer comparison (experimental)" : "觀察者比較（實驗性）"}
+                <select aria-label="Observer export variant" value={observerVariant} onChange={event => {
+                  setObserverVariant(event.target.value as ObserverExportVariant);
+                  resetReview();
+                }} className="mt-2 block w-full rounded border border-card-border bg-white p-2 text-sm">
+                  <option value="standard">{locale === "ja" ? "通常分析" : "Standard analysis"}</option>
+                  <option value="original">{locale === "ja" ? "比較用・通常版" : "Comparison: original"}</option>
+                  <option value="swapped">{locale === "ja" ? "比較用・話者入替版" : "Comparison: swapped"}</option>
+                </select>
+              </label>
+              {observerVariant !== "standard" && <p className="mt-2 leading-5 text-muted">{locale === "ja" ? "PERSON_A/Bの2人だけに対応。同じ範囲・マスキング・日時設定で両方を別々に全文確認し、同一モデルの独立したチャットに4ファイルずつ送ってください。2種類を同じチャットに送らないでください。本文中のA/Bラベルも入れ替わります。" : "Exactly PERSON_A and PERSON_B required. Keep scope, masking and dates unchanged, review each variant separately, and use separate fresh sessions of the same model. Send only that variant’s four files, not both variants. Body A/B references are swapped too."}</p>}
+            </div>
             <div className="mt-4 space-y-3 rounded-xl border border-card-border p-3">
               <p className="text-xs leading-5 text-muted">{text.previewInfo}</p>
               <button type="button" onClick={generatePreview}
@@ -702,6 +722,9 @@ export function ChatGptExportLauncher() {
               ) : null}
             </div>
 
+            {observerVariant !== "standard" && validPreview && approvalEnabled && canShare && (
+              <ObserverComparisonPanel key={reviewGeneration} locale={locale} files={validPreview.files} />
+            )}
             <div className="mt-5 flex items-center justify-end gap-3">
               {status === "done" ? (
                 <span className="text-xs text-emerald-700">{text.done}</span>
