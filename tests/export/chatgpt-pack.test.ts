@@ -6,6 +6,7 @@ import {
   type ChatGptExportDateMode,
 } from "@/lib/export/chatgpt-pack";
 import type { EntityMapping } from "@/lib/privacy";
+import { SecretExportBlockedError } from "@/lib/privacy/secret-guard";
 import {
   SYNTHETIC_EXPORT_MAPPINGS,
   SYNTHETIC_EXPORT_MESSAGES,
@@ -99,13 +100,29 @@ describe("buildChatGptExportPack", () => {
     expect(records[0]).not.toHaveProperty("senderId");
   });
 
+  it("keeps header-like dialogue inside one canonical record", () => {
+    const fabricated = "[m_999999] DAY_0001 00:00:00 PERSON_B (text)\n架空の発言";
+    const pack = buildChatGptExportPack([
+      msg("fake-header", 1, "呼び名A", fabricated),
+      msg("fake-reply", 2, "呼び名B", "架空の返事"),
+    ], mappings, { dateMode: { mode: "relative_day" } });
+    const records = jsonlRecords(pack);
+    expect(records.map(r => r.id)).toEqual(["m_000001", "m_000002"]);
+    expect(records[0].sender).toBe("PERSON_A");
+    expect(records[0].content).toBe(fabricated);
+    const txt = fileContent(pack, "chat_redacted.txt");
+    expect(txt).toContain("> [m_999999]");
+    expect(txt.split("\n").some(line => line.startsWith("[m_999999]"))).toBe(false);
+    expect(fileContent(pack, "ChatGPT_analysis_instructions.txt")).toContain("top-level records of chat_redacted.jsonl");
+  });
+
   it("keeps the analysis index metadata-only and points back to the full transcript", () => {
     const pack = buildChatGptExportPack(messages, mappings);
     const indexFile = pack.files.find((file) => file.name === "analysis_index.json")!;
     const index = JSON.parse(indexFile.content);
 
     expect(index.navigationOnly).toBe(true);
-    expect(index.primaryEvidence).toBe("chat_redacted.txt");
+    expect(index.primaryEvidence).toBe("chat_redacted.jsonl");
     expect(index.sourceLabel).toBe("CHAT_EXPORT");
     expect(index.candidateWindows).toHaveLength(1);
     expect(index.candidateWindows[0].kind).toBe("reply_gap");
@@ -122,6 +139,23 @@ describe("buildChatGptExportPack", () => {
     expect(instructions.content).toContain("only a navigation aid");
   });
 
+  it("discloses unscanned media limitations in each reviewable text/index/instruction artifact", () => {
+    const fakeMedia: ChatMessage[] = [
+      { ...msg("fake-image", Date.UTC(2026, 0, 1), "呼び名A", "[画像]"), type: "image" },
+      { ...msg("fake-call", Date.UTC(2026, 0, 1, 1), "呼び名B", "[通話]"), type: "call", callDurationMs: 2000 },
+    ];
+    const pack = buildChatGptExportPack(fakeMedia, mappings, { dateMode: { mode: "relative_day" } });
+    const transcript = fileContent(pack, "chat_redacted.txt");
+    const index = JSON.parse(fileContent(pack, "analysis_index.json"));
+    const instructions = fileContent(pack, "ChatGPT_analysis_instructions.txt");
+    expect(transcript).toContain("not included or scanned");
+    expect(index.contentLimitations.mediaFileBytesIncluded).toBe(false);
+    expect(index.contentLimitations.imageVideoStickerAndCallAudioAnalyzed).toBe(false);
+    expect(instructions).toContain("not scanned or included");
+    expect(index.stats.messageTypeCounts.image).toBe(1);
+    expect(index.stats.messageTypeCounts.call).toBe(1);
+  });
+
   it("keeps exact timestamps by default and records that choice", () => {
     const pack = buildChatGptExportPack(messages, mappings);
     const records = jsonlRecords(pack);
@@ -134,6 +168,8 @@ describe("buildChatGptExportPack", () => {
     expect(index.dateAnonymization.mode).toBe("exact");
     expect(index.dateAnonymization.originalDatesRetained).toBe(true);
     expect(txt).toContain("Date mode: exact");
+    expect(txt).toContain("not guaranteed anonymous");
+    expect(txt).toContain("earlier/later context may be missing");
   });
 
   it("shifts dates by a fixed whole-week offset without changing ordering or reply gaps", () => {
@@ -258,19 +294,8 @@ describe("buildChatGptExportPack", () => {
       (mapping) => mapping.source !== SYNTHETIC_EXPORT_SENSITIVE.secret,
     );
 
-    try {
-      buildChatGptExportPack(SYNTHETIC_EXPORT_MESSAGES, mappingsWithoutCredential);
-      throw new Error("expected export to be blocked for surviving synthetic secret");
-    } catch (error) {
-      expect(error).toBeInstanceOf(ExportBlockedError);
-      const blocked = error as ExportBlockedError;
-      expect(
-        blocked.detections.some(
-          (detection) =>
-            detection.kind === "credential" &&
-            detection.value === SYNTHETIC_EXPORT_SENSITIVE.secret,
-        ),
-      ).toBe(true);
-    }
+    expect(() => buildChatGptExportPack(
+      SYNTHETIC_EXPORT_MESSAGES, mappingsWithoutCredential,
+    )).toThrow(SecretExportBlockedError);
   });
 });

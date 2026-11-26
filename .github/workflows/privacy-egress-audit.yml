@@ -1,0 +1,48 @@
+name: Privacy egress audit (synthetic Chromium)
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: privacy-egress-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  synthetic-browser:
+    name: Audit import and review network boundary
+    runs-on: ubuntu-24.04 # Playwright 1.56.1 does not support Ubuntu 26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+      - name: Enforce public fixture safety
+        run: npm run privacy:guard
+      - name: Check browser probe syntax
+        run: node --check scripts/audit-browser-network.cjs
+      - name: Install app and build static output
+        run: |
+          npm ci
+          npm run build
+      - name: Install isolated Chromium audit dependencies
+        run: |
+          mkdir -p "$RUNNER_TEMP/privacy-driver"
+          cd "$RUNNER_TEMP/privacy-driver"
+          npm init -y >/dev/null
+          npm install --no-package-lock --ignore-scripts --no-audit --no-fund playwright@1.56.1
+          npx playwright install --with-deps chromium
+      - name: Audit the actual browser import / review / preflight
+        env:
+          NODE_PATH: ${{ runner.temp }}/privacy-driver/node_modules
+        run: |
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory out >/tmp/chatstory-static-server.log 2>&1 &
+          node scripts/audit-browser-network.cjs
+      - name: Verify production dependency gate
+        run: npm audit --omit=dev --audit-level=high
