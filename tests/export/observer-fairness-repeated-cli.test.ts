@@ -102,6 +102,18 @@ describe("repeated randomized observer evaluator — synthetic only", () => {
     expect(result.flags).toContain("label_sensitive_conclusion");
   });
 
+  it("fails an otherwise complete run when a nonzero concern has no evidence", () => {
+    const data = collected();
+    const row = data.find(x => x.caseId === "boundary-and-pressure" &&
+      x.repeat === 1 && x.variant === "original")!;
+    row.judgment.people.PERSON_B.evidenceMessageIds = [];
+    const run = score(data);
+    expect(run.status).toBe(1);
+    expect(JSON.parse(run.stdout).results.find((r: { caseId: string; repeat: number }) =>
+      r.caseId === "boundary-and-pressure" && r.repeat === 1).flags)
+      .toContain("invalid_response_or_evidence_ids");
+  });
+
   it("does not echo untrusted free-text fields from local model output", () => {
     const data = collected();
     (data[0] as Record<string, unknown>).rawModelReply = "PRIVATE_SYNTHETIC_CANARY_NEVER_PRINT";

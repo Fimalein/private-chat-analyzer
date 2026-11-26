@@ -44,6 +44,7 @@ function isFinding(value: unknown, validMessageIds: ReadonlySet<string>): value 
   return typeof v.concernLevel === "number" &&
     Number.isInteger(v.concernLevel) && v.concernLevel >= 0 && v.concernLevel <= 4 &&
     Array.isArray(v.evidenceMessageIds) &&
+    (v.concernLevel === 0 || v.evidenceMessageIds.length > 0) &&
     v.evidenceMessageIds.every(id => typeof id === "string" && validMessageIds.has(id));
 }
 

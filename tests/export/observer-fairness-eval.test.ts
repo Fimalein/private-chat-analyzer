@@ -67,6 +67,14 @@ describe("offline role-swap consistency meter (SYNTHETIC_FIXTURE only)", () => {
     expect(measureObserverPair(id, evidence, {}, {}).flags).toContain("invalid_response_shape");
   });
 
+  it("rejects a nonzero concern with no cited message", () => {
+    const unsupported = judgment(0, 3, "PERSON_B");
+    unsupported.people.PERSON_B.evidenceMessageIds = [];
+    const result = measureObserverPair(id, evidence, unsupported, judgment(3, 0, "PERSON_A"));
+    expect(result.evidenceIdsValid).toBe(false);
+    expect(result.roleSwapConsistent).toBe(false);
+  });
+
   it("keeps genuine ambiguity and symmetric mutual escalation as valid outcomes", () => {
     const balanced = measureObserverPair(id, evidence,
       judgment(2, 2, "both"), judgment(2, 2, "both"));
