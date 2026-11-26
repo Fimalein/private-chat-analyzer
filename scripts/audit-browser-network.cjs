@@ -14,7 +14,9 @@ const origin = process.env.CHATSTORY_TEST_ORIGIN || "http://127.0.0.1:4173";
 let auditStage = "desktop_initial";
 const longTail = "SYNTHETIC_LONG_BODY_TAIL";
 const longBody = "架空の文章 / fabricated text / 測試 / 🌱 ".repeat(300) + longTail;
+const comparisonCanary = "SYNTHETIC_COMPARISON_INPUT_ONLY_703";
 const canaries = [
+  comparisonCanary,
   "network-sentinel-chat-418",
   "sender-one@example.test",
   "sender-two@example.test",
@@ -25,7 +27,7 @@ const fixture = [
   "",
   "2026/10/11(日)",
   "9:10\tsender-one@example.test\tSYNTHETIC_FIXTURE network-sentinel-chat-418: 最近はどう？",
-  "9:11\tsender-two@example.test\tSYNTHETIC_FIXTURE 今日の話題を分析したい。",
+  "9:11\tsender-two@example.test\tSYNTHETIC_FIXTURE PERSON_Aへ。今日の話題を分析したい。",
   "9:12\tsender-one@example.test\tSYNTHETIC_FIXTURE " + longBody,
 ].join("\n");
 
@@ -102,7 +104,7 @@ const fixture = [
     const dialog = page.getByRole("dialog");
     await dialog.waitFor();
     const sensitive = dialog.locator("textarea").first();
-    await sensitive.fill(canaries.slice(1).join("\n"));
+    await sensitive.fill(canaries.slice(2).join("\n"));
     await dialog.getByRole("button", { name: /產生四份本機預覽|Generate local preview of 4 files/ }).click();
     await dialog.getByText("chat_redacted.txt", { exact: true }).waitFor();
     assert.equal(await dialog.getByRole("button", { name: /下載這份已審核檔案|Download this reviewed file/ }).count(),
@@ -187,15 +189,16 @@ const fixture = [
     assert.ok(longRecords.some(record => record.content === "SYNTHETIC_FIXTURE " + longBody),
       "JSONL preview must preserve the exact fabricated multilingual long message");
     auditStage = "desktop_approved_zip_download";
-    const [zipDownload] = await Promise.all([
+    async function verifyDownloadedZip(reviewedFiles, filename) {
+      const [zipDownload] = await Promise.all([
       page.waitForEvent("download"),
       shareButton.click(),
     ]);
-    assert.equal(zipDownload.suggestedFilename(), "ChatStory_analysis_pack.zip");
+    assert.equal(zipDownload.suggestedFilename(), filename);
     const zipBytes = await readFile(await zipDownload.path());
     let zipOffset = 0;
     const decodedFiles = [];
-    for (const expected of finalReviewedFiles) {
+    for (const expected of reviewedFiles) {
       assert.equal(zipBytes.readUInt32LE(zipOffset), 0x04034b50, "Missing ZIP local entry");
       const nameBytes = zipBytes.readUInt16LE(zipOffset + 26);
       const extraBytes = zipBytes.readUInt16LE(zipOffset + 28);
@@ -212,6 +215,8 @@ const fixture = [
     assert.equal(zipBytes.readUInt32LE(zipOffset), 0x02014b50, "ZIP must contain central directory");
     assert.equal(zipBytes.readUInt16LE(zipBytes.length - 12), 4, "Exactly four files required");
     assert.equal(decodedFiles.length, 4);
+    }
+    await verifyDownloadedZip(finalReviewedFiles, "ChatStory_analysis_pack.zip");
 
     auditStage = "desktop_simulated_share_cancellation";
     await page.evaluate(() => {
@@ -226,6 +231,82 @@ const fixture = [
     await page.waitForFunction(() => window.__syntheticShareAttempted === true);
     assert.equal(await page.getByText(/Sharing finished or ZIP download started/).count(), 0,
       "Cancelled sharing must not be displayed as a completed handoff");
+
+    auditStage = "desktop_observer_original_review";
+    const variantPicker = page.getByLabel("Observer export variant");
+    await variantPicker.selectOption("original");
+    assert.equal(await shareButton.isDisabled(), true, "Changing variant must invalidate prior approval");
+    const originalInput = page.getByRole("textbox", { name: "Original JSON", exact: true });
+    const swappedInput = page.getByRole("textbox", { name: "Swapped JSON", exact: true });
+    assert.equal(await originalInput.count(), 0, "Comparison unavailable without fresh approval");
+    const originalFiles = await reviewAllFour();
+    await verifyDownloadedZip(originalFiles, "ChatStory_analysis_pack_original.zip");
+    await originalInput.waitFor();
+    assert.equal(await page.getByRole("button", {name: "Compare", exact: true}).isDisabled(), true);
+    const fileContent = (files, name) => files.find(file => file.name === name).content;
+    const records = files => fileContent(files, "chat_redacted.jsonl").trim().split("\n").map(line => JSON.parse(line));
+    const flip = value => value === "PERSON_A" ? "PERSON_B" : value === "PERSON_B" ? "PERSON_A" : value;
+    const flipText = text => text.replace(/\bPERSON_[AB]\b/g, flip);
+    const originalRecords = records(originalFiles);
+    assert.equal(new Set(originalRecords.map(row => row.sender)).size, 2);
+    assert.ok(originalRecords[1].content.includes("PERSON_Aへ"));
+    assert.ok(fileContent(originalFiles, "ChatGPT_analysis_instructions.txt").includes("observer-review"));
+
+    auditStage = "desktop_observer_swapped_review";
+    await originalInput.fill(comparisonCanary);
+    await variantPicker.selectOption("swapped");
+    assert.equal(await shareButton.isDisabled(), true, "Original approval must not unlock swapped pack");
+    assert.equal(await originalInput.count(), 0, "Variant changes clear comparison inputs");
+    const swappedFiles = await reviewAllFour();
+    await verifyDownloadedZip(swappedFiles, "ChatStory_analysis_pack_swapped.zip");
+    const reversedRecords = records(swappedFiles);
+    assert.deepEqual(reversedRecords, originalRecords.map(row => ({
+      ...row, sender: flip(row.sender), content: flipText(row.content),
+    })), "Only A/B labels may differ in the canonical JSONL");
+    assert.equal(fileContent(swappedFiles, "chat_redacted.txt"), flipText(fileContent(originalFiles, "chat_redacted.txt")));
+    assert.equal(fileContent(swappedFiles, "ChatGPT_analysis_instructions.txt"), fileContent(originalFiles, "ChatGPT_analysis_instructions.txt"));
+    const originalIndex = JSON.parse(fileContent(originalFiles, "analysis_index.json"));
+    const swappedIndex = JSON.parse(fileContent(swappedFiles, "analysis_index.json"));
+    assert.deepEqual(swappedIndex.stats.senderMessageCounts, Object.fromEntries(
+      Object.entries(originalIndex.stats.senderMessageCounts).map(([role, count]) => [flip(role), count])));
+    assert.equal(swappedIndex.uploaderSpeaker, "NOT_PROVIDED");
+
+    auditStage = "desktop_observer_compare";
+    await originalInput.waitFor();
+    assert.equal(await originalInput.inputValue(), "");
+    assert.equal(await swappedInput.inputValue(), "");
+    const compareButton = page.getByRole("button", {name: "Compare", exact: true});
+    const evidenceId = originalRecords.find(row => row.sender === "PERSON_B").id;
+    const answer = (a, b, higherConcern, aIds = [], bIds = []) => JSON.stringify({
+      caseId: "observer-review", requesterIdentity: "unknown",
+      people: { PERSON_A: {concernLevel: a, evidenceMessageIds: aIds},
+        PERSON_B: {concernLevel: b, evidenceMessageIds: bIds} }, higherConcern,
+    });
+    await originalInput.fill(answer(0, 3, "PERSON_B", [], [evidenceId]));
+    await swappedInput.fill(answer(4, 0, "PERSON_A", [evidenceId]));
+    await compareButton.click();
+    await page.getByText("Within comparison criteria (not a guarantee of correctness)", {exact: true}).waitFor();
+    await page.getByText("PERSON_B: 3 / 4 (role-mapped)", {exact: true}).waitFor();
+    await swappedInput.fill(answer(3, 0, "undetermined", [evidenceId]));
+    assert.equal(await page.getByText("Within comparison criteria (not a guarantee of correctness)", {exact: true}).count(), 0,
+      "Editing a response invalidates its previous comparison");
+    await compareButton.click();
+    await page.getByText("Disagreement or invalid evidence: withhold ranking.", {exact: true}).waitFor();
+    await page.getByText("label_sensitive_conclusion", {exact: true}).waitFor();
+    await swappedInput.fill(answer(3, 0, "PERSON_A", ["m_999999"]));
+    await compareButton.click();
+    await page.getByText("unsupported_evidence_ids", {exact: true}).waitFor();
+    await page.getByText("evidence_selection_differs", {exact: true}).waitFor();
+    await swappedInput.fill(comparisonCanary);
+    await compareButton.click();
+    await page.getByText("Cannot compare: check the required JSON format.", {exact: true}).waitFor();
+    assert.equal(await page.getByText("Disagreement or invalid evidence: withhold ranking.", {exact: true}).count(), 0);
+    assert.equal(await page.evaluate(marker =>
+      JSON.stringify(localStorage).includes(marker) || JSON.stringify(sessionStorage).includes(marker),
+      comparisonCanary), false, "Comparison input must not appear in web storage");
+    await scopePicker.selectOption("all");
+    assert.equal(await shareButton.isDisabled(), true);
+    assert.equal(await originalInput.count(), 0, "Changing scope must clear comparison inputs and result");
 
     // Additional synthetic chat: no native share is possible if a cookie secret
     // remains, even when recipient terms have been acknowledged.
@@ -253,6 +334,9 @@ const fixture = [
       name: /儲存核准的 ZIP|Save approved ZIP locally/,
     }).isDisabled(), true, "Synthetic secret must block ordinary export after provider acknowledgement");
     await page.getByText(/認證秘密資料|Authentication secrets remain/).waitFor();
+    await page.getByLabel("Observer export variant").selectOption("swapped");
+    assert.equal(await page.getByRole("button", {name: /Generate local preview of 4 exact files/}).isDisabled(), true,
+      "Comparison variant must not bypass secret gate");
     // Never trigger native share or a download in this pre-handoff network test.
 
     auditStage = "mobile_context";
@@ -335,6 +419,29 @@ const fixture = [
       await mobileViewer.waitFor();
       assert.equal((await mobileViewer.inputValue()).includes("MOBILE_FABRICATED_FIRST_EXCLUDED"), true,
         "Explicit all selection includes the fabricated earliest message");
+      auditStage = "mobile_observer_comparison";
+      await mobilePage.getByLabel("Observer export variant").selectOption("swapped");
+      assert.equal(await mobileShare.isDisabled(), true);
+      await mobilePage.getByRole("checkbox", {name: /I understand that downloading/}).check();
+      await mobilePage.getByRole("button", {name: /Generate local preview of 4 exact files/}).click();
+      await mobileViewer.waitFor();
+      for (const name of ["chat_redacted.txt", "chat_redacted.jsonl", "analysis_index.json", "ChatGPT_analysis_instructions.txt"]) {
+        await mobilePage.getByRole("button", {name, exact: true}).click();
+        await mobilePage.getByRole("checkbox", {name: /I reviewed the entire selected file/}).check();
+        assert.equal(await mobileShare.isDisabled(), true);
+      }
+      await mobilePage.getByRole("button", {name: /Approve these 4 exact files/}).click();
+      assert.equal(await mobileShare.isEnabled(), true);
+      const mobileOriginal = mobilePage.getByRole("textbox", {name: "Original JSON", exact: true});
+      const mobileSwapped = mobilePage.getByRole("textbox", {name: "Swapped JSON", exact: true});
+      const mobileAnswer = answer(0, 0, "undetermined");
+      await mobileOriginal.fill(mobileAnswer);
+      await mobileSwapped.fill(mobileAnswer);
+      await mobilePage.getByRole("button", {name: "Compare", exact: true}).click();
+      await mobilePage.getByText("Within comparison criteria (not a guarantee of correctness)", {exact: true}).waitFor();
+      await mobilePage.getByLabel("Observer export variant").selectOption("original");
+      assert.equal(await mobileOriginal.count(), 0);
+      assert.equal(await mobileShare.isDisabled(), true);
       assert.equal(mobileEgressAttempts, 0, "No off-origin calls in mobile emulation");
       assert.equal(mobileCanaryAttempts, 0, "No synthetic canary egress in mobile emulation");
     } finally {
@@ -354,10 +461,14 @@ const fixture = [
       longMultilingualPreview: "passed",
       simulatedShareCancellation: "passed",
       scopeResetAndMobileEmulation: "passed",
+      observerMobileEmulation: "passed",
       mobileSameOriginRequests: mobileLocalRequests,
       mobileExternalRequests: mobileEgressAttempts,
       mobileOutgoingCanaryRequests: mobileCanaryAttempts,
       ordinarySecretGate: "passed",
+      observerOriginalSwappedZipParity: "passed",
+      observerComparisonWarningsAndReset: "passed",
+      observerComparisonWebStorageCanary: "not_found",
       localRequestCount: localRequests,
       attemptedExternalRequests: deniedExternal.length,
       outgoingCanaryRequests: leakedToNetwork.length,
