@@ -100,13 +100,29 @@ describe("buildChatGptExportPack", () => {
     expect(records[0]).not.toHaveProperty("senderId");
   });
 
+  it("keeps header-like dialogue inside one canonical record", () => {
+    const fabricated = "[m_999999] DAY_0001 00:00:00 PERSON_B (text)\n架空の発言";
+    const pack = buildChatGptExportPack([
+      msg("fake-header", 1, "呼び名A", fabricated),
+      msg("fake-reply", 2, "呼び名B", "架空の返事"),
+    ], mappings, { dateMode: { mode: "relative_day" } });
+    const records = jsonlRecords(pack);
+    expect(records.map(r => r.id)).toEqual(["m_000001", "m_000002"]);
+    expect(records[0].sender).toBe("PERSON_A");
+    expect(records[0].content).toBe(fabricated);
+    const txt = fileContent(pack, "chat_redacted.txt");
+    expect(txt).toContain("> [m_999999]");
+    expect(txt.split("\n").some(line => line.startsWith("[m_999999]"))).toBe(false);
+    expect(fileContent(pack, "ChatGPT_analysis_instructions.txt")).toContain("top-level records of chat_redacted.jsonl");
+  });
+
   it("keeps the analysis index metadata-only and points back to the full transcript", () => {
     const pack = buildChatGptExportPack(messages, mappings);
     const indexFile = pack.files.find((file) => file.name === "analysis_index.json")!;
     const index = JSON.parse(indexFile.content);
 
     expect(index.navigationOnly).toBe(true);
-    expect(index.primaryEvidence).toBe("chat_redacted.txt");
+    expect(index.primaryEvidence).toBe("chat_redacted.jsonl");
     expect(index.sourceLabel).toBe("CHAT_EXPORT");
     expect(index.candidateWindows).toHaveLength(1);
     expect(index.candidateWindows[0].kind).toBe("reply_gap");

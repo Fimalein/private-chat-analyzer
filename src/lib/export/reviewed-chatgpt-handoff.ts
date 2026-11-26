@@ -101,6 +101,7 @@ export function approveStandardHandoff(
   // handoff, rather than trusting the pack rendered earlier.
   const pack = buildChatGptExportPack(rawMessages, mappings, { dateMode });
   if (pack.files.length !== STANDARD_HANDOFF_FILE_NAMES.length ||
+      preview.files.length !== STANDARD_HANDOFF_FILE_NAMES.length ||
       pack.files.some((file, i) =>
         file.name !== STANDARD_HANDOFF_FILE_NAMES[i] ||
         preview.files[i]?.name !== file.name ||

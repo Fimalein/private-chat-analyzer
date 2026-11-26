@@ -95,6 +95,9 @@ describe("standard reviewed LLM handoff (fabricated-only)", () => {
     expect(reason(() => approve(tampered, reviewed))).toBe("preview_changed");
     expect(reason(() => approve({ ...preview, files: preview.files.slice(0, 3) }, reviewed)))
       .toBe("preview_changed");
+    const unexpectedFile = { ...preview.files[0], name: "synthetic-extra.txt" };
+    expect(reason(() => approve({ ...preview, files: [...preview.files, unexpectedFile] }, reviewed)))
+      .toBe("preview_changed");
   });
 
   it("uses the shared credential blocker rather than bypassing it for preview", () => {
